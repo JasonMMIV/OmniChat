@@ -36,14 +36,20 @@ class _FakeSettings extends ChangeNotifier implements SettingsProvider {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-ProviderConfig _provider(String id, List<String> models) => ProviderConfig(
+ProviderConfig _provider(
+  String id,
+  List<String> models, {
+  bool enabled = true,
+  Set<String> disabledModels = const <String>{},
+}) => ProviderConfig(
   id: id,
-  enabled: true,
+  enabled: enabled,
   name: id,
   apiKey: 'k',
   baseUrl: 'http://127.0.0.1:1',
   providerType: ProviderKind.openai,
   models: models,
+  disabledModels: disabledModels,
 );
 
 Future<void> _pumpPage(WidgetTester tester, _FakeSettings settings) async {
@@ -173,7 +179,7 @@ void main() {
     expect(find.text('Follow conversation'), findsOneWidget);
     await _save(tester);
     expect(
-      find.textContaining('no longer exists', findRichText: true),
+      find.textContaining('no longer', findRichText: true),
       findsOneWidget,
     );
   });
@@ -257,6 +263,102 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(settings.subagentProfiles.any((p) => p.id == 'throwaway'), isFalse);
+  });
+
+  testWidgets('only offers enabled providers and enabled models', (
+    tester,
+  ) async {
+    final settings = _FakeSettings(
+      providers: {
+        'active-provider': _provider(
+          'active-provider',
+          ['active-model', 'disabled-model'],
+          disabledModels: {'disabled-model'},
+        ),
+        'disabled-provider': _provider('disabled-provider', [
+          'hidden-model',
+        ], enabled: false),
+      },
+    );
+    await _pumpPage(tester, settings);
+
+    await _openNew(tester);
+    await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('active-provider'), findsOneWidget);
+    expect(find.text('disabled-provider'), findsNothing);
+
+    await tester.tap(find.text('active-provider').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('active-model'), findsOneWidget);
+    expect(find.text('disabled-model'), findsNothing);
+  });
+
+  testWidgets('shows an immediate warning for a disabled model binding', (
+    tester,
+  ) async {
+    final explore = SubagentProfiles.resolve(
+      'explore',
+      SubagentProfiles.builtIns,
+    )!.copyWith(providerKey: 'p1', modelId: 'm1');
+    final settings = _FakeSettings(
+      profiles: [explore],
+      providers: {
+        'p1': _provider('p1', ['m1'], disabledModels: const <String>{'m1'}),
+      },
+    );
+    await _pumpPage(tester, settings);
+
+    await tester.tap(find.text('Explore'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This model is no longer enabled. Pick another model.'),
+      findsOneWidget,
+    );
+    await _save(tester);
+    expect(
+      find.text('This model is no longer enabled. Pick another model.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a provider with no enabled models cannot be saved', (
+    tester,
+  ) async {
+    final settings = _FakeSettings(
+      providers: {'empty-provider': _provider('empty-provider', [])},
+    );
+    await _pumpPage(tester, settings);
+
+    await _openNew(tester);
+    await tester.enterText(find.byType(TextField).first, 'Empty Model Agent');
+    await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('empty-provider').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No enabled models for this provider. Add or enable a model in Providers first.',
+      ),
+      findsOneWidget,
+    );
+    await _save(tester);
+    expect(
+      find.text(
+        'No enabled models for this provider. Add or enable a model in Providers first.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      settings.subagentProfiles.any((p) => p.id == 'empty_model_agent'),
+      isFalse,
+    );
   });
 
   testWidgets('persists a pre-bound provider and model', (tester) async {

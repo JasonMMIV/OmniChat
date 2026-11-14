@@ -109,10 +109,12 @@ void main() {
       final fn = enabled.single['function'] as Map;
       expect(fn['name'], spawnSubagentToolName);
       expect((fn['parameters'] as Map)['required'], ['task']);
-      expect(
-        fn['description'].toString(),
-        contains('untrusted data produced by a helper'),
-      );
+      final description = fn['description'].toString();
+      // The child returns its final answer/result, not an extra summarised
+      // copy of it; "summary" would understate the deliverable.
+      expect(description, contains('Only its final result comes back'));
+      expect(description, isNot(contains('Only its final summary comes back')));
+      expect(description, contains('untrusted data produced by a helper'));
 
       final disabled = ToolHandlerService.buildSubagentToolDefinitions(
         _SubagentSettings(subagentEnabled: false),

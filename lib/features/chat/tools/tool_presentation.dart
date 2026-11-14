@@ -85,6 +85,9 @@ IconData toolIcon(String rawName) {
       return Lucide.FileText;
     case 'builtin_search':
       return Lucide.Search;
+    case 'spawn_subagent':
+    case 'delegate_subagent':
+      return Lucide.Bot;
     case 'skill':
       return Lucide.WandSparkles;
     case 'illustrate':
@@ -159,6 +162,8 @@ String toolDisplayName(AppLocalizations l10n, String rawName) {
       return l10n.toolNameWebFetch;
     case 'builtin_search':
       return l10n.toolNameBuiltinSearch;
+    case 'delegate_subagent':
+      return l10n.toolNameDelegateSubagent;
     case 'skill':
       return l10n.toolNameSkill;
     case 'illustrate':

@@ -27,6 +27,8 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/services/chat/storage/chat_storage_gate.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/models/chat_message.dart';
+import '../../../core/models/chat_input_data.dart';
+import '../../../core/services/agent/subagent_mention.dart';
 import '../../../core/services/android_process_text.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/platform_utils.dart';
@@ -117,6 +119,11 @@ class _HomePageState extends State<HomePage>
   bool _migrationKeepAliveShouldRestore = false;
   final Set<String> _processedIncomingShareIds = <String>{};
   final Set<String> _notifiedIncomingShareFailures = <String>{};
+
+  /// Set by a delegated-result card's Continue action; consumed by the next
+  /// composer send and carried on [ChatInputData].
+  String? _pendingSubagentSessionId;
+  String? _pendingSubagentProfileId;
 
   // ============================================================================
   // Page Controller (manages all business logic and state)
@@ -509,10 +516,7 @@ class _HomePageState extends State<HomePage>
   /// `initChat()` finished (so attachments land in a live input bar) and is
   /// serialized so overlapping shares cannot interleave.
   void _drainIncomingShares() {
-    if (!PlatformUtils.isAndroid ||
-        !_chatInitialized ||
-        !mounted)
-      return;
+    if (!PlatformUtils.isAndroid || !_chatInitialized || !mounted) return;
     _incomingShareQueue = _incomingShareQueue
         .then((_) async {
           final shares = await AndroidIncomingShare.getPendingShares();
@@ -1138,6 +1142,7 @@ class _HomePageState extends State<HomePage>
               approve: approve,
             );
           },
+      onContinueSubagent: _continueSubagentSession,
     );
   }
 
@@ -1169,6 +1174,26 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  ChatInputData _consumeSubagentSession(ChatInputData data) {
+    final sessionId = _pendingSubagentSessionId;
+    final profileId = _pendingSubagentProfileId;
+    _pendingSubagentSessionId = null;
+    _pendingSubagentProfileId = null;
+    if (sessionId == null || profileId == null) return data;
+    final mention = parseSubagentMention(data.text);
+    if (mention == null || mention.profileId != profileId) return data;
+    return data.copyWith(
+      subagentSessionId: sessionId,
+      subagentSessionProfileId: profileId,
+    );
+  }
+
+  void _continueSubagentSession(String profileId, String sessionId) {
+    _pendingSubagentSessionId = sessionId;
+    _pendingSubagentProfileId = profileId;
+    _mediaController.insertSubagentMention(profileId);
+  }
+
   Widget _buildChatInputBar(BuildContext context, {required bool isTablet}) {
     return ChatInputSection(
       inputBarKey: _inputBarKey,
@@ -1197,9 +1222,14 @@ class _HomePageState extends State<HomePage>
             context,
             anchorKey: _inputBarKey,
             assistantId: a?.id,
+            onDelegateProfile: _mediaController.insertSubagentMention,
           );
         } else {
-          showAddonsSheet(context, assistantId: a?.id);
+          showAddonsSheet(
+            context,
+            assistantId: a?.id,
+            onDelegateProfile: _mediaController.insertSubagentMention,
+          );
         }
       },
       onLongPressAddons: () {
@@ -1230,7 +1260,7 @@ class _HomePageState extends State<HomePage>
         }
       },
       onSend: (data) {
-        _controller.sendMessage(data);
+        _controller.sendMessage(_consumeSubagentSession(data));
         _inputController.clear();
         if (PlatformUtils.isMobile) {
           _controller.dismissKeyboard();
@@ -1241,7 +1271,7 @@ class _HomePageState extends State<HomePage>
       onQueue: (data) {
         // Queue routes through the same sendMessage entry; the controller
         // enqueues while the conversation is generating (F8).
-        _controller.sendMessage(data);
+        _controller.sendMessage(_consumeSubagentSession(data));
         _inputController.clear();
         if (PlatformUtils.isMobile) {
           _controller.dismissKeyboard();

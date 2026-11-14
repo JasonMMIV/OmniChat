@@ -11,10 +11,7 @@ import 'package:OmniChat/core/services/chat/turn_queue/send_gate.dart';
 void main() {
   group('canQueueChatInput', () {
     test('idle conversation never queues', () {
-      expect(
-        canQueueChatInput(loading: false, text: 'hello'),
-        isFalse,
-      );
+      expect(canQueueChatInput(loading: false, text: 'hello'), isFalse);
     });
 
     test('running conversation queues plain text', () {
@@ -22,10 +19,7 @@ void main() {
     });
 
     test('running conversation queues attachments without text (F9)', () {
-      expect(
-        canQueueChatInput(loading: true, text: '', imageCount: 1),
-        isTrue,
-      );
+      expect(canQueueChatInput(loading: true, text: '', imageCount: 1), isTrue);
       expect(
         canQueueChatInput(loading: true, text: '', documentCount: 2),
         isTrue,
@@ -60,6 +54,17 @@ void main() {
     test('slash commands cannot steer', () {
       expect(canSteerChatInput(loading: true, text: '/skill foo'), isFalse);
       expect(canSteerChatInput(loading: true, text: '  /skill foo'), isFalse);
+    });
+
+    test('direct subagent mentions cannot steer', () {
+      expect(
+        canSteerChatInput(loading: true, text: '@explore find it'),
+        isFalse,
+      );
+      expect(
+        canSteerChatInput(loading: true, text: '  @explore find it'),
+        isFalse,
+      );
     });
 
     test('blank text cannot steer', () {
@@ -113,6 +118,13 @@ void main() {
       expect(
         sendNowBlockReason(loading: true, text: '/skill foo'),
         SendNowBlockReason.command,
+      );
+    });
+
+    test('a leading subagent mention reports the delegation hint', () {
+      expect(
+        sendNowBlockReason(loading: true, text: '@explore find it'),
+        SendNowBlockReason.delegation,
       );
     });
   });

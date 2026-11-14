@@ -8,10 +8,10 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/agent/subagent.dart';
+import '../../../core/services/agent/subagent_profiles.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/chat/todo_models.dart';
-import '../../settings/pages/subagent_profiles_page.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -25,6 +25,7 @@ import '../../../shared/widgets/ios_switch.dart';
 Future<void> showAddonsSheet(
   BuildContext context, {
   required String? assistantId,
+  ValueChanged<String>? onDelegateProfile,
 }) async {
   final cs = Theme.of(context).colorScheme;
   await showModalBottomSheet<void>(
@@ -34,14 +35,18 @@ Future<void> showAddonsSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => _AddonsSheetBody(assistantId: assistantId),
+    builder: (_) => _AddonsSheetBody(
+      assistantId: assistantId,
+      onDelegateProfile: onDelegateProfile,
+    ),
   );
 }
 
 class _AddonsSheetBody extends StatelessWidget {
-  const _AddonsSheetBody({required this.assistantId});
+  const _AddonsSheetBody({required this.assistantId, this.onDelegateProfile});
 
   final String? assistantId;
+  final ValueChanged<String>? onDelegateProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +81,7 @@ class _AddonsSheetBody extends StatelessWidget {
                 child: AddonsMenuContent(
                   assistantId: assistantId,
                   onRequestClose: () => Navigator.of(context).maybePop(),
+                  onDelegateProfile: onDelegateProfile,
                 ),
               ),
             ),
@@ -97,6 +103,7 @@ class AddonsMenuContent extends StatefulWidget {
     super.key,
     required this.assistantId,
     this.onRequestClose,
+    this.onDelegateProfile,
   });
 
   /// Assistant whose MCP selection the switches edit. Null (or a stale id)
@@ -107,6 +114,9 @@ class AddonsMenuContent extends StatefulWidget {
   /// (the Self-Review picker).
   final Future<void> Function()? onRequestClose;
 
+  /// Inserts `@<profileId>` into the composer after the menu closes.
+  final ValueChanged<String>? onDelegateProfile;
+
   @override
   State<AddonsMenuContent> createState() => _AddonsMenuContentState();
 }
@@ -115,6 +125,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   bool _mcpExpanded = true;
   bool _builtInExpanded = true;
   bool _advancedExpanded = true;
+  bool _subagentExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -123,20 +134,24 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     final settings = context.watch<SettingsProvider>();
     final mcp = context.watch<McpProvider>();
     final ap = context.watch<AssistantProvider>();
-    final assistant =
-        widget.assistantId == null ? null : ap.getById(widget.assistantId!);
+    final assistant = widget.assistantId == null
+        ? null
+        : ap.getById(widget.assistantId!);
 
     final connected = mcp.servers
         .where((s) => mcp.statusFor(s.id) == McpStatus.connected)
         .toList();
     final selectedIds = assistant?.mcpServerIds.toSet() ?? const <String>{};
-    final selectedCount =
-        connected.where((s) => selectedIds.contains(s.id)).length;
+    final selectedCount = connected
+        .where((s) => selectedIds.contains(s.id))
+        .length;
 
     final writeTodosOn =
-        settings.planningEnabled && settings.isWorkspaceToolEnabled(todoToolName);
+        settings.planningEnabled &&
+        settings.isWorkspaceToolEnabled(todoToolName);
     final askUserOn = settings.isWorkspaceToolEnabled(askUserToolName);
     final subagentOn = settings.isWorkspaceToolEnabled(spawnSubagentToolName);
+    final subagentProfiles = settings.subagentProfiles;
     final reviewMode = settings.answerReviewMode;
     final advancedOnCount =
         (subagentOn ? 1 : 0) + (reviewMode != AnswerReviewMode.off ? 1 : 0);
@@ -172,8 +187,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
                     ),
                   ),
                   enabled: assistant != null,
-                  onTap: () =>
-                      _toggleServer(s.id, !selectedIds.contains(s.id)),
+                  onTap: () => _toggleServer(s.id, !selectedIds.contains(s.id)),
                   trailing: IosSwitch(
                     value: selectedIds.contains(s.id),
                     width: 38,
@@ -207,7 +221,11 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
               ),
             ),
             _MenuRow(
-              leading: Icon(Lucide.MessageCircle, size: 16, color: cs.onSurface),
+              leading: Icon(
+                Lucide.MessageCircle,
+                size: 16,
+                color: cs.onSurface,
+              ),
               title: l10n.builtInToolAskUserName,
               subtitle: l10n.addonsAskUserSubtitle,
               onTap: () => _setAskUser(!askUserOn),
@@ -231,32 +249,73 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           children: [
             _MenuRow(
               leading: Icon(
-                Lucide.UserRoundCheck,
+                subagentOn ? Lucide.Bot : Lucide.UserRoundCheck,
                 size: 16,
-                color: cs.onSurface,
+                color: subagentOn ? cs.primary : cs.onSurface,
               ),
               title: l10n.builtInToolSubagentName,
               subtitle: l10n.addonsSubagentSubtitle,
-              onTap: () => _setSubagent(!subagentOn),
-              trailing: IosSwitch(
-                value: subagentOn,
-                width: 38,
-                height: 22,
-                hitTestSize: 44,
-                onChanged: _setSubagent,
+              detail: Text(
+                subagentOn
+                    ? l10n.addonsSubagentProfileCount(
+                        subagentProfiles.length.toString(),
+                      )
+                    : l10n.addonsSubagentEnable,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: subagentOn
+                      ? cs.primary
+                      : cs.onSurface.withOpacity(0.6),
+                ),
               ),
-            ),
-            _MenuRow(
-              leading: Icon(Lucide.Users, size: 16, color: cs.onSurface),
-              title: l10n.subagentProfilesTitle,
-              subtitle: l10n.subagentProfilesDescription,
-              trailing: Icon(
-                Lucide.ChevronRight,
-                size: 14,
-                color: cs.onSurface.withOpacity(0.55),
+              trailing: AnimatedRotation(
+                turns: _subagentExpanded ? 0.25 : 0,
+                duration: const Duration(milliseconds: 160),
+                child: Icon(
+                  Lucide.ChevronRight,
+                  size: 14,
+                  color: cs.onSurface.withOpacity(0.55),
+                ),
               ),
-              onTap: _openSubagentProfiles,
+              onTap: () =>
+                  setState(() => _subagentExpanded = !_subagentExpanded),
             ),
+            if (_subagentExpanded) ...[
+              _MenuRow(
+                leading: Icon(
+                  Lucide.Play,
+                  size: 16,
+                  color: subagentOn ? cs.primary : cs.onSurface,
+                ),
+                title: l10n.addonsSubagentEnable,
+                onTap: () => _setSubagent(!subagentOn),
+                trailing: IosSwitch(
+                  value: subagentOn,
+                  width: 38,
+                  height: 22,
+                  hitTestSize: 44,
+                  onChanged: _setSubagent,
+                ),
+              ),
+              if (!subagentOn) _hintRow(l10n.addonsSubagentPickHint),
+              for (final profile in subagentProfiles)
+                _MenuRow(
+                  leading: Icon(
+                    profile.readOnly ? Lucide.Eye : Lucide.Bot,
+                    size: 16,
+                    color: cs.onSurface,
+                  ),
+                  title: profile.name,
+                  subtitle: _subagentProfileSubtitle(l10n, profile),
+                  trailing: Icon(
+                    Lucide.ChevronRight,
+                    size: 14,
+                    color: cs.onSurface.withOpacity(0.55),
+                  ),
+                  enabled: subagentOn,
+                  onTap: () => _pickSubagentProfile(profile.id),
+                ),
+            ],
             _MenuRow(
               leading: Icon(
                 Lucide.ScanSearch,
@@ -420,31 +479,41 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
   }
 
   Future<void> _setAskUser(bool v) {
-    return context
-        .read<SettingsProvider>()
-        .setWorkspaceToolEnabled(askUserToolName, v);
+    return context.read<SettingsProvider>().setWorkspaceToolEnabled(
+      askUserToolName,
+      v,
+    );
   }
 
   Future<void> _setSubagent(bool v) {
-    return context
-        .read<SettingsProvider>()
-        .setWorkspaceToolEnabled(spawnSubagentToolName, v);
+    return context.read<SettingsProvider>().setWorkspaceToolEnabled(
+      spawnSubagentToolName,
+      v,
+    );
   }
 
-  /// P1-1 (A1): profile registry editor. Close the hosting menu first — the
-  /// desktop popover is an OverlayEntry above the navigator, so a page pushed
-  /// while it is still inserted would appear behind it (same fix as the
-  /// workspace/Add-ons menus).
-  Future<void> _openSubagentProfiles() async {
-    final navigator = Navigator.of(context);
+  String _subagentProfileSubtitle(
+    AppLocalizations l10n,
+    SubagentProfile profile,
+  ) {
+    final toolCount = profile.allowedTools?.length;
+    return [
+      profile.id,
+      if (profile.readOnly) l10n.subagentProfileReadOnly,
+      if (toolCount != null)
+        l10n.subagentProfileToolsCount(toolCount.toString()),
+      profile.followsConversationModel
+          ? l10n.subagentProfileFollowConversation
+          : '${profile.providerKey} / ${profile.modelId}',
+    ].join(' · ');
+  }
+
+  Future<void> _pickSubagentProfile(String profileId) async {
     await widget.onRequestClose?.call();
+    // Mobile sheets pop without awaiting the route animation; let it clear so
+    // the composer can take focus and the keyboard opens over it.
     await Future<void>.delayed(const Duration(milliseconds: 80));
-    if (!navigator.mounted) return;
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => const SubagentProfilesPage(),
-      ),
-    );
+    widget.onDelegateProfile?.call(profileId);
   }
 
   Future<void> _toggleServer(String serverId, bool selected) async {

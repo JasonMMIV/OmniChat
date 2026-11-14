@@ -314,6 +314,10 @@ class HomeViewModel extends ChangeNotifier {
     if (!result.success) {
       if (result.errorMessage == 'no_model') {
         onWarning?.call('no_model');
+      } else if (result.errorMessage ==
+              'subagent_profile_provider_unavailable' ||
+          result.errorMessage == 'subagent_profile_model_unavailable') {
+        onWarning?.call(result.errorMessage!);
       } else if (result.errorMessage != 'empty_input') {
         onError?.call(result.errorMessage ?? 'unknown_error');
       }

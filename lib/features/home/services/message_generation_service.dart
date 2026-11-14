@@ -65,6 +65,14 @@ class PreparedGeneration {
   /// P1-4: helper token accumulator shared with the terminal usage merge.
   final SubagentUsageAccumulator? subagentUsage;
 
+  /// Snapshot used by a direct `@profile` delegation. The normal
+  /// `spawn_subagent` path receives the same object through `onToolCall`.
+  final SubagentLaunchConfig? subagentLaunch;
+
+  /// Workspace resolved during assembly. The direct delegation path reuses it
+  /// instead of resolving the same conversation twice.
+  final String? workspacePath;
+
   PreparedGeneration({
     required this.apiMessages,
     required this.toolDefs,
@@ -73,6 +81,8 @@ class PreparedGeneration {
     required this.lastUserImagePaths,
     this.toolImagePolicy,
     this.subagentUsage,
+    this.subagentLaunch,
+    this.workspacePath,
   });
 }
 
@@ -517,6 +527,23 @@ class MessageGenerationService {
     // into the terminal usage by the orchestrator (totalTokens only; the
     // context ring must not move).
     final subagentUsage = SubagentUsageAccumulator();
+    // Built even when the parent model has no tool support: a direct
+    // `@profile` delegation must still be able to run a text-only helper.
+    final subagentLaunch = SubagentLaunchConfig(
+      providerKey: providerKey,
+      modelId: modelId,
+      tools: toolDefs,
+      extraHeaders: generationController.buildCustomHeaders(assistant),
+      extraBody: generationController.buildCustomBody(assistant),
+      maxTokens: assistant?.maxTokens,
+      temperature: assistant?.temperature,
+      topP: assistant?.topP,
+      thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
+      toolImagesEnabled: sendToolImages,
+      projectInstructions: assistant?.systemPrompt,
+      workspaceFileMap: workspaceFileMap,
+      onUsage: subagentUsage.add,
+    );
     final onToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(
             settings,
@@ -528,21 +555,7 @@ class MessageGenerationService {
             // provider/model, the tools actually advertised here, the
             // assistant's custom headers/body + output cap, the run's sampling
             // settings, and the brief material (P0-3).
-            subagentContext: SubagentLaunchConfig(
-              providerKey: providerKey,
-              modelId: modelId,
-              tools: toolDefs,
-              extraHeaders: generationController.buildCustomHeaders(assistant),
-              extraBody: generationController.buildCustomBody(assistant),
-              maxTokens: assistant?.maxTokens,
-              temperature: assistant?.temperature,
-              topP: assistant?.topP,
-              thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
-              toolImagesEnabled: sendToolImages,
-              projectInstructions: assistant?.systemPrompt,
-              workspaceFileMap: workspaceFileMap,
-              onUsage: subagentUsage.add,
-            ),
+            subagentContext: subagentLaunch,
           )
         : null;
 
@@ -557,6 +570,8 @@ class MessageGenerationService {
         enabled: sendToolImages,
       ),
       subagentUsage: subagentUsage,
+      subagentLaunch: subagentLaunch,
+      workspacePath: workspacePath,
     );
   }
 

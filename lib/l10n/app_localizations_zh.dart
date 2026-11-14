@@ -7078,6 +7078,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerSendNowCommandHint => '斜线指令只能排入队列';
 
   @override
+  String get composerSendNowDelegationHint => '子代理 @提及 只能排入队列';
+
+  @override
   String get composerSendNowTeamHint => 'AI Team 进行中无法插入';
 
   @override
@@ -7113,11 +7116,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get queueDockSendFailed => '队列消息送出失败，已放回队首';
 
   @override
-  String subagentTraceStep(String tool, String ms, String chars) {
-    return '$tool · $ms 毫秒 · $chars 字符';
-  }
-
-  @override
   String subagentTraceMore(String count) {
     return '（另有 $count 条）';
   }
@@ -7142,6 +7140,39 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get subagentTraceEmpty => '没有记录到工具调用。';
+
+  @override
+  String get subagentTraceRunning => '执行中…';
+
+  @override
+  String subagentTraceStepMeta(String ms, String chars) {
+    return '$ms 毫秒 · $chars 字符';
+  }
+
+  @override
+  String subagentTraceRunningTool(String tool) {
+    return '正在执行 $tool…';
+  }
+
+  @override
+  String subagentDelegatedTo(String name) {
+    return '已委派给 $name';
+  }
+
+  @override
+  String get subagentDelegatedContinue => '继续';
+
+  @override
+  String get subagentDelegatedContinueHint => '在这个 session 继续追问';
+
+  @override
+  String get subagentDelegatedFailed => '子代理未能完成此任务。';
+
+  @override
+  String get subagentDelegatedEmpty => '子代理没有回传结果。';
+
+  @override
+  String get toolNameDelegateSubagent => '子代理委派';
 
   @override
   String get subagentProfilesTitle => '子代理设定档';
@@ -7176,13 +7207,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get subagentProfileAllowedToolsHint =>
-      '留空 = 全部子工具。只读设定档一律拒绝写入与 shell 工具。';
+      '留空 = 允许所有子工具。只读设定档会强制封锁写入、shell 与记忆写入工具。';
 
   @override
   String get subagentProfileReadOnly => '只读';
 
   @override
-  String get subagentProfileReadOnlySubtitle => '即使被广告，也拒绝写入与 shell 工具。';
+  String get subagentProfileReadOnlySubtitle => '一律封锁写入、shell 与记忆写入工具。';
 
   @override
   String get subagentProfileModel => '模型';
@@ -7245,7 +7276,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get subagentProfileWriteBlocked => '只读模式会封锁此工具。';
 
   @override
-  String get subagentProfileProviderMissing => '所选供应商已不存在，请改选其他供应商或跟随对话。';
+  String get subagentProfileProviderMissing => '所选供应商已停用或不存在，请改选其他供应商或跟随对话。';
+
+  @override
+  String get subagentProfileNoEnabledModels => '此供应商没有已启用的模型。请先到「供应商」新增或启用模型。';
+
+  @override
+  String get subagentProfileModelUnavailable => '此模型已停用，请选择其他模型。';
 
   @override
   String get subagentProfileMaxStepsRange => '最大步数必须介于 1 到 40。';
@@ -7266,6 +7303,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String subagentProfileToolsCount(String count) {
     return '$count 个工具';
   }
+
+  @override
+  String get addonsSubagentEnable => '启用子代理';
+
+  @override
+  String addonsSubagentProfileCount(String count) {
+    return '$count 个子代理';
+  }
+
+  @override
+  String get addonsSubagentPickHint => '选择子代理以插入 @提及。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -14130,6 +14178,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get composerSendNowCommandHint => '斜线指令只能排入队列';
 
   @override
+  String get composerSendNowDelegationHint => '子代理 @提及 只能排入队列';
+
+  @override
   String get composerSendNowTeamHint => 'AI Team 进行中无法插入';
 
   @override
@@ -14165,11 +14216,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get queueDockSendFailed => '队列消息送出失败，已放回队首';
 
   @override
-  String subagentTraceStep(String tool, String ms, String chars) {
-    return '$tool · $ms 毫秒 · $chars 字符';
-  }
-
-  @override
   String subagentTraceMore(String count) {
     return '（另有 $count 条）';
   }
@@ -14194,6 +14240,39 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get subagentTraceEmpty => '没有记录到工具调用。';
+
+  @override
+  String get subagentTraceRunning => '执行中…';
+
+  @override
+  String subagentTraceStepMeta(String ms, String chars) {
+    return '$ms 毫秒 · $chars 字符';
+  }
+
+  @override
+  String subagentTraceRunningTool(String tool) {
+    return '正在执行 $tool…';
+  }
+
+  @override
+  String subagentDelegatedTo(String name) {
+    return '已委派给 $name';
+  }
+
+  @override
+  String get subagentDelegatedContinue => '继续';
+
+  @override
+  String get subagentDelegatedContinueHint => '在这个 session 继续追问';
+
+  @override
+  String get subagentDelegatedFailed => '子代理未能完成此任务。';
+
+  @override
+  String get subagentDelegatedEmpty => '子代理没有回传结果。';
+
+  @override
+  String get toolNameDelegateSubagent => '子代理委派';
 
   @override
   String get subagentProfilesTitle => '子代理设定档';
@@ -14228,13 +14307,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get subagentProfileAllowedToolsHint =>
-      '留空 = 全部子工具。只读设定档一律拒绝写入与 shell 工具。';
+      '留空 = 允许所有子工具。只读设定档会强制封锁写入、shell 与记忆写入工具。';
 
   @override
   String get subagentProfileReadOnly => '只读';
 
   @override
-  String get subagentProfileReadOnlySubtitle => '即使被广告，也拒绝写入与 shell 工具。';
+  String get subagentProfileReadOnlySubtitle => '一律封锁写入、shell 与记忆写入工具。';
 
   @override
   String get subagentProfileModel => '模型';
@@ -14297,7 +14376,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get subagentProfileWriteBlocked => '只读模式会封锁此工具。';
 
   @override
-  String get subagentProfileProviderMissing => '所选供应商已不存在，请改选其他供应商或跟随对话。';
+  String get subagentProfileProviderMissing => '所选供应商已停用或不存在，请改选其他供应商或跟随对话。';
+
+  @override
+  String get subagentProfileNoEnabledModels => '此供应商没有已启用的模型。请先到「供应商」新增或启用模型。';
+
+  @override
+  String get subagentProfileModelUnavailable => '此模型已停用，请选择其他模型。';
 
   @override
   String get subagentProfileMaxStepsRange => '最大步数必须介于 1 到 40。';
@@ -14318,6 +14403,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String subagentProfileToolsCount(String count) {
     return '$count 个工具';
   }
+
+  @override
+  String get addonsSubagentEnable => '启用子代理';
+
+  @override
+  String addonsSubagentProfileCount(String count) {
+    return '$count 个子代理';
+  }
+
+  @override
+  String get addonsSubagentPickHint => '选择子代理以插入 @提及。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -21281,6 +21377,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get composerSendNowCommandHint => '斜線指令只能排入佇列';
 
   @override
+  String get composerSendNowDelegationHint => '子代理 @提及 只能排入佇列';
+
+  @override
   String get composerSendNowTeamHint => 'AI Team 進行中無法插入';
 
   @override
@@ -21316,11 +21415,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get queueDockSendFailed => '佇列訊息送出失敗，已放回隊首';
 
   @override
-  String subagentTraceStep(String tool, String ms, String chars) {
-    return '$tool · $ms 毫秒 · $chars 字元';
-  }
-
-  @override
   String subagentTraceMore(String count) {
     return '（另有 $count 筆）';
   }
@@ -21345,6 +21439,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get subagentTraceEmpty => '沒有記錄到工具呼叫。';
+
+  @override
+  String get subagentTraceRunning => '執行中…';
+
+  @override
+  String subagentTraceStepMeta(String ms, String chars) {
+    return '$ms 毫秒 · $chars 字元';
+  }
+
+  @override
+  String subagentTraceRunningTool(String tool) {
+    return '正在執行 $tool…';
+  }
+
+  @override
+  String subagentDelegatedTo(String name) {
+    return '已委派給 $name';
+  }
+
+  @override
+  String get subagentDelegatedContinue => '繼續';
+
+  @override
+  String get subagentDelegatedContinueHint => '在這個 session 繼續追問';
+
+  @override
+  String get subagentDelegatedFailed => '子代理未能完成此任務。';
+
+  @override
+  String get subagentDelegatedEmpty => '子代理沒有回傳結果。';
+
+  @override
+  String get toolNameDelegateSubagent => '子代理委派';
 
   @override
   String get subagentProfilesTitle => '子代理設定檔';
@@ -21379,13 +21506,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get subagentProfileAllowedToolsHint =>
-      '留空 = 全部子工具。唯讀設定檔一律拒絕寫入與 shell 工具。';
+      '留空 = 允許所有子工具。唯讀設定檔會強制封鎖寫入、shell 與記憶寫入工具。';
 
   @override
   String get subagentProfileReadOnly => '唯讀';
 
   @override
-  String get subagentProfileReadOnlySubtitle => '即使被廣告，也拒絕寫入與 shell 工具。';
+  String get subagentProfileReadOnlySubtitle => '一律封鎖寫入、shell 與記憶寫入工具。';
 
   @override
   String get subagentProfileModel => '模型';
@@ -21448,7 +21575,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get subagentProfileWriteBlocked => '唯讀模式會封鎖此工具。';
 
   @override
-  String get subagentProfileProviderMissing => '所選供應商已不存在，請改選其他供應商或跟隨對話。';
+  String get subagentProfileProviderMissing => '所選供應商已停用或不存在，請改選其他供應商或跟隨對話。';
+
+  @override
+  String get subagentProfileNoEnabledModels => '此供應商沒有已啟用的模型。請先到「供應商」新增或啟用模型。';
+
+  @override
+  String get subagentProfileModelUnavailable => '此模型已停用，請選擇其他模型。';
 
   @override
   String get subagentProfileMaxStepsRange => '最大步數必須介於 1 到 40。';
@@ -21469,4 +21602,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String subagentProfileToolsCount(String count) {
     return '$count 個工具';
   }
+
+  @override
+  String get addonsSubagentEnable => '啟用子代理';
+
+  @override
+  String addonsSubagentProfileCount(String count) {
+    return '$count 個子代理';
+  }
+
+  @override
+  String get addonsSubagentPickHint => '選擇子代理以插入 @提及。';
 }

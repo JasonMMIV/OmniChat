@@ -46,6 +46,7 @@ import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/agent/approval.dart';
 import '../../../core/services/agent/subagent.dart';
+import '../../../core/services/agent/subagent_profiles.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 
@@ -203,6 +204,9 @@ class ChatMessageWidget extends StatefulWidget {
     required bool approve,
   })?
   onResolveApproval;
+  // Direct @profile delegation result card: Continue reuses the helper
+  // session id for the next composer send.
+  final void Function(String profileId, String sessionId)? onContinueSubagent;
   // `/skill` load rows (2026-10-06): names of the skills the user invoked via
   // `/skill <name>` in this turn's user message (derived by the message
   // list). Rendered as static 載入技能 rows above the process group — the
@@ -257,6 +261,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.hideStreamingIndicator = false,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
+    this.onContinueSubagent,
     this.userInvokedSkillNames = const <String>[],
     this.showOAuthRecovery = false,
   });
@@ -2034,6 +2039,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       toolName: tools[i].toolName,
                       content: tools[i].content,
                     ),
+                    keepOpen: tools[i].toolName == delegateSubagentToolName,
                   ),
               ],
               isStreaming: isStreaming,
@@ -2057,6 +2063,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             final bool resolvedOpen = resolveProcessOpen(
               explicitOpen: widget.processGroupExplicitOpen,
               forcedOpen: model.forcedOpen,
+              keepOpen: model.keepOpen,
               live: model.live,
               autoCollapse: settings.autoCollapseThinking,
             );
@@ -2128,6 +2135,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               tool.index == _lastSuccessfulTodoPartIndex(tools),
                           onSubmitAskUserAnswer: widget.onSubmitAskUserAnswer,
                           onResolveApproval: widget.onResolveApproval,
+                          onContinueSubagent: widget.onContinueSubagent,
                         ),
                       },
                     ),
@@ -3428,9 +3436,11 @@ class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
     final l10n = AppLocalizations.of(context)!;
     final rawItems = widget.trace['items'];
     final items = rawItems is List ? rawItems : const [];
+    final running = (widget.trace['running'] ?? '').toString();
     final more = widget.trace['more'] is num
         ? (widget.trace['more'] as num).toInt()
         : 0;
+    final hasContent = items.isNotEmpty || running.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3459,6 +3469,19 @@ class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
                     color: widget.color.withOpacity(0.7),
                   ),
                 ),
+                if (running.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.6,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        widget.color.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -3466,7 +3489,7 @@ class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
         if (_open)
           Padding(
             padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
-            child: items.isEmpty
+            child: !hasContent
                 ? Text(
                     l10n.subagentTraceEmpty,
                     style: TextStyle(
@@ -3479,18 +3502,22 @@ class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
                     children: [
                       for (final item in items)
                         if (item is Map)
-                          Text(
-                            l10n.subagentTraceStep(
-                              (item['t'] ?? 'tool').toString(),
-                              (item['ms'] ?? 0).toString(),
-                              (item['chars'] ?? 0).toString(),
-                            ),
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontFamily: 'monospace',
-                              color: widget.color.withOpacity(0.7),
-                            ),
+                          _SubagentTraceToolRow(
+                            tool: (item['t'] ?? 'tool').toString(),
+                            durationMs: item['ms'] is num
+                                ? (item['ms'] as num).toInt()
+                                : 0,
+                            resultChars: item['chars'] is num
+                                ? (item['chars'] as num).toInt()
+                                : 0,
+                            color: widget.color,
                           ),
+                      if (running.isNotEmpty)
+                        _SubagentTraceToolRow(
+                          tool: running,
+                          color: widget.color,
+                          running: true,
+                        ),
                       if (more > 0)
                         Text(
                           l10n.subagentTraceMore(more.toString()),
@@ -3503,6 +3530,217 @@ class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
                   ),
           ),
       ],
+    );
+  }
+}
+
+/// One child tool action rendered like the parent's compact tool cards:
+/// icon + localized tool name + duration/result size. No arguments are shown
+/// (A6); the card is purely an observability surface.
+class _SubagentTraceToolRow extends StatelessWidget {
+  const _SubagentTraceToolRow({
+    required this.tool,
+    required this.color,
+    this.durationMs = 0,
+    this.resultChars = 0,
+    this.running = false,
+  });
+
+  final String tool;
+  final Color color;
+  final int durationMs;
+  final int resultChars;
+  final bool running;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.055),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.14)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: running
+                ? CircularProgressIndicator(
+                    strokeWidth: 1.6,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      color.withOpacity(0.8),
+                    ),
+                  )
+                : Icon(toolIcon(tool), size: 15, color: color.withOpacity(0.9)),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Tooltip(
+              message: tool,
+              child: Text(
+                toolDisplayName(l10n, tool),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Text(
+              running
+                  ? l10n.subagentTraceRunning
+                  : l10n.subagentTraceStepMeta(
+                      durationMs.toString(),
+                      resultChars.toString(),
+                    ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontFeatures: const [ui.FontFeature.tabularFigures()],
+                color: color.withOpacity(0.65),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// User-initiated `@profile` delegation card. Sits in the process group above
+/// the assistant's final answer; Continue only reuses an actually stored
+/// helper session (the trace carries its id).
+class DelegatedSubagentCard extends StatelessWidget {
+  const DelegatedSubagentCard({required this.part, this.onContinueSubagent});
+
+  final ToolUIPart part;
+  final void Function(String profileId, String sessionId)? onContinueSubagent;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+    final trace = part.subagentTrace;
+    final profileId = (part.arguments['agent'] ?? trace?['profile'] ?? '')
+        .toString();
+    final profile = profileId.isEmpty
+        ? null
+        : SubagentProfiles.resolve(profileId, settings.subagentProfiles);
+    final profileName = (profile?.name ?? '').trim();
+    final name = profileName.isNotEmpty
+        ? profileName
+        : (profileId.isEmpty ? l10n.toolNameDelegateSubagent : profileId);
+    final sessionId = (trace?['sessionId'] ?? '').toString();
+    final canContinue =
+        !part.loading &&
+        profileId.isNotEmpty &&
+        sessionId.isNotEmpty &&
+        onContinueSubagent != null;
+    final runningTool = (trace?['running'] ?? '').toString();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(0.055),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.primary.withOpacity(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: part.loading
+                    ? CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                      )
+                    : Icon(Lucide.Bot, size: 18, color: cs.primary),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.subagentDelegatedTo(name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    if (part.loading)
+                      Text(
+                        runningTool.isNotEmpty
+                            ? l10n.subagentTraceRunningTool(
+                                toolDisplayName(l10n, runningTool),
+                              )
+                            : l10n.subagentTraceRunning,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.62),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (canContinue)
+                Tooltip(
+                  message: l10n.subagentDelegatedContinueHint,
+                  child: TextButton.icon(
+                    onPressed: () => onContinueSubagent!(profileId, sessionId),
+                    icon: Icon(Lucide.Play, size: 14, color: cs.primary),
+                    label: Text(
+                      l10n.subagentDelegatedContinue,
+                      style: TextStyle(fontSize: 12, color: cs.primary),
+                    ),
+                    style: TextButton.styleFrom(
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (trace != null && trace.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: SubagentTraceExpander(
+                trace: trace,
+                color: cs.onSurface.withOpacity(0.65),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -3666,6 +3904,7 @@ class _ToolCallItem extends StatelessWidget {
     this.isLatestPlan = true,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
+    this.onContinueSubagent,
   });
   final ToolUIPart part;
 
@@ -3696,6 +3935,9 @@ class _ToolCallItem extends StatelessWidget {
     required bool approve,
   })?
   onResolveApproval;
+
+  /// Direct @profile result card: Continue reuses the helper session.
+  final void Function(String profileId, String sessionId)? onContinueSubagent;
 
   /// Runtime status wins (it records the last actual send). When absent, a
   /// static check covers old conversations and the moments before the first
@@ -3741,6 +3983,15 @@ class _ToolCallItem extends StatelessWidget {
         imageSendState == null || imageSendState == ToolImageSendState.attached
         ? null
         : toolImageSendReason(l10n, imageSendState);
+
+    // User-initiated `@profile` delegation: a dedicated card, not the generic
+    // model tool row. The final answer follows as the assistant's content.
+    if (part.toolName == delegateSubagentToolName) {
+      return DelegatedSubagentCard(
+        part: part,
+        onContinueSubagent: onContinueSubagent,
+      );
+    }
 
     // P1-3: cowork tools render as dedicated interactive cards instead of the
     // generic tool row (plan card / ask_user answer card).
@@ -3962,11 +4213,14 @@ class _ToolCallItem extends StatelessWidget {
     final tokens = trace['tokens'] is num
         ? (trace['tokens'] as num).toInt()
         : 0;
+    final running = (trace['running'] ?? '').toString();
     return [
       if (profile.isNotEmpty) profile,
-      l10n.subagentTraceSteps(steps.toString()),
-      l10n.subagentTraceToolCalls(calls.toString()),
-      l10n.subagentTraceTokens(_formatTokenCount(tokens)),
+      if (steps > 0) l10n.subagentTraceSteps(steps.toString()),
+      if (calls > 0) l10n.subagentTraceToolCalls(calls.toString()),
+      if (tokens > 0) l10n.subagentTraceTokens(_formatTokenCount(tokens)),
+      if (running.isNotEmpty)
+        l10n.subagentTraceRunningTool(toolDisplayName(l10n, running)),
     ].join(' · ');
   }
 
@@ -3978,7 +4232,9 @@ class _ToolCallItem extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final items = trace['items'] is List ? trace['items'] as List : const [];
+    final running = (trace['running'] ?? '').toString();
     final more = trace['more'] is num ? (trace['more'] as num).toInt() : 0;
+    final hasContent = items.isNotEmpty || running.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3997,7 +4253,7 @@ class _ToolCallItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
           ),
-          child: items.isEmpty
+          child: !hasContent
               ? Text(
                   l10n.subagentTraceEmpty,
                   style: const TextStyle(fontSize: 12),
@@ -4007,20 +4263,22 @@ class _ToolCallItem extends StatelessWidget {
                   children: [
                     for (final item in items)
                       if (item is Map)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1),
-                          child: Text(
-                            l10n.subagentTraceStep(
-                              (item['t'] ?? 'tool').toString(),
-                              (item['ms'] ?? 0).toString(),
-                              (item['chars'] ?? 0).toString(),
-                            ),
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
+                        _SubagentTraceToolRow(
+                          tool: (item['t'] ?? 'tool').toString(),
+                          durationMs: item['ms'] is num
+                              ? (item['ms'] as num).toInt()
+                              : 0,
+                          resultChars: item['chars'] is num
+                              ? (item['chars'] as num).toInt()
+                              : 0,
+                          color: cs.onSurface.withOpacity(0.65),
                         ),
+                    if (running.isNotEmpty)
+                      _SubagentTraceToolRow(
+                        tool: running,
+                        color: cs.onSurface.withOpacity(0.65),
+                        running: true,
+                      ),
                     if (more > 0)
                       Text(
                         l10n.subagentTraceMore(more.toString()),

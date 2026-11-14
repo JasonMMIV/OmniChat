@@ -1034,6 +1034,18 @@ class HomePageController extends ChangeNotifier {
           message: l10n.queueDockSendFailed,
           type: NotificationType.warning,
         );
+      } else if (warning == 'subagent_profile_provider_unavailable') {
+        showAppSnackBar(
+          _context,
+          message: l10n.subagentProfileProviderMissing,
+          type: NotificationType.warning,
+        );
+      } else if (warning == 'subagent_profile_model_unavailable') {
+        showAppSnackBar(
+          _context,
+          message: l10n.subagentProfileModelUnavailable,
+          type: NotificationType.warning,
+        );
       }
     };
     _viewModel.onScrollToBottom = () => _scrollToBottomSoon();

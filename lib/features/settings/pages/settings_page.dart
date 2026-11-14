@@ -22,6 +22,7 @@ import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../instruction_injection/pages/instruction_injection_page.dart';
 import '../../skills/pages/skills_page.dart';
 import 'memory_settings_page.dart';
+import 'subagent_profiles_page.dart';
 import '../../ai_team/pages/ai_team_page.dart';
 import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
@@ -328,6 +329,19 @@ class SettingsPage extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const MemorySettingsPage(),
+                    ),
+                  );
+                },
+              ),
+              _iosDivider(context),
+              _iosNavRow(
+                context,
+                icon: Lucide.Bot,
+                label: l10n.subagentProfilesTitle,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SubagentProfilesPage(),
                     ),
                   );
                 },

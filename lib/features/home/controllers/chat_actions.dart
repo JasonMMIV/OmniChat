@@ -47,6 +47,9 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/agent/agent_orchestrator.dart';
 import '../../../core/services/agent/answer_review.dart';
+import '../../../core/services/agent/subagent.dart';
+import '../../../core/services/agent/subagent_mention.dart';
+import '../../../core/services/agent/subagent_profiles.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
 import '../../../core/services/agent/subagent_session_store.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint_store.dart';
@@ -194,6 +197,11 @@ class ChatActions {
   Map<String, StreamSubscription<dynamic>> get _conversationStreams =>
       chatController.conversationStreams;
 
+  /// Direct `@profile` runs that own the assistant placeholder. Stop must be
+  /// able to veto a run that is still preparing its context.
+  final Set<String> _activeDelegatedSubagentIds = <String>{};
+  final Set<String> _cancelledDelegatedSubagentIds = <String>{};
+
   /// Pending AI Team proposals JSON (messageId → JSON string) awaiting persistence after aggregator finishes.
   final Map<String, String> _aiTeamPendingProposals = {};
 
@@ -269,6 +277,68 @@ class ChatActions {
         ? assistantProvider.currentAssistant
         : assistantProvider.getById(conversation.assistantId!);
     final assistantId = assistant?.id;
+
+    // A leading `@profile` delegates directly to that helper. This path never
+    // sends the task to the main model; the helper's final answer becomes the
+    // assistant message, with a dedicated `delegate_subagent` card above it.
+    final mention = parseSubagentMention(content);
+    final delegatedProfile = mention == null
+        ? null
+        : SubagentProfiles.resolve(
+            mention.profileId,
+            settings.subagentProfiles,
+          );
+    if (delegatedProfile != null &&
+        mention != null &&
+        mention.task.isNotEmpty &&
+        settings.isWorkspaceToolEnabled(spawnSubagentToolName)) {
+      _clearQueuePauseOnManualSend(conversation.id);
+      final modelConfig = messageGenerationService.getModelConfig(
+        settings,
+        assistant,
+      );
+      final profileProvider = (delegatedProfile.providerKey ?? '').trim();
+      final profileModel = (delegatedProfile.modelId ?? '').trim();
+      final useProfileModel =
+          profileProvider.isNotEmpty && profileModel.isNotEmpty;
+      final directProviderKey = useProfileModel
+          ? profileProvider
+          : modelConfig.providerKey;
+      final directModelId = useProfileModel
+          ? profileModel
+          : modelConfig.modelId;
+      if (directProviderKey == null || directModelId == null) {
+        return ChatActionResult.noModel();
+      }
+      if (useProfileModel) {
+        final profileConfig = settings.providerConfigs[profileProvider];
+        if (profileConfig == null || !profileConfig.enabled) {
+          return ChatActionResult.error(
+            'subagent_profile_provider_unavailable',
+          );
+        }
+        if (!profileConfig.isModelEnabled(profileModel)) {
+          return ChatActionResult.error('subagent_profile_model_unavailable');
+        }
+      }
+      final continueSessionId =
+          input.subagentSessionProfileId == delegatedProfile.id
+          ? input.subagentSessionId
+          : null;
+      return _startDelegatedSubagent(
+        input: input,
+        conversation: conversation,
+        settings: settings,
+        assistant: assistant,
+        assistantId: assistantId,
+        profile: delegatedProfile,
+        task: mention.task,
+        sessionId: continueSessionId,
+        providerKey: directProviderKey,
+        modelId: directModelId,
+      );
+    }
+
     final modelConfig = messageGenerationService.getModelConfig(
       settings,
       assistant,
@@ -413,6 +483,374 @@ class ChatActions {
       await _executeGeneration(ctx);
     }
     return ChatActionResult.success(assistantMessage);
+  }
+
+  // ============================================================================
+  // Direct @profile delegation
+  // ============================================================================
+
+  Future<ChatActionResult> _startDelegatedSubagent({
+    required ChatInputData input,
+    required Conversation conversation,
+    required SettingsProvider settings,
+    required Assistant? assistant,
+    required String? assistantId,
+    required SubagentProfile profile,
+    required String task,
+    required String? sessionId,
+    required String providerKey,
+    required String modelId,
+  }) async {
+    final userMessage = await messageGenerationService.createUserMessage(
+      conversationId: conversation.id,
+      input: input,
+      assistant: assistant,
+    );
+    _messages.add(userMessage);
+    onMessagesChanged?.call();
+
+    _setConversationLoading(conversation.id, true);
+    final assistantMessage = await messageGenerationService
+        .createAssistantPlaceholder(
+          conversationId: conversation.id,
+          modelId: modelId,
+          providerKey: providerKey,
+        );
+    final startedAt = DateTime.now();
+    await chatService.updateMessage(
+      assistantMessage.id,
+      processStartedAt: startedAt,
+    );
+    final startedMessage = assistantMessage.copyWith(
+      processStartedAt: startedAt,
+    );
+    streamController.markStreamingStarted(startedMessage.id);
+    _messages.add(startedMessage);
+    onMessagesChanged?.call();
+
+    _activeDelegatedSubagentIds.add(startedMessage.id);
+    unawaited(
+      _runDelegatedSubagent(
+        conversation: conversation,
+        settings: settings,
+        assistant: assistant,
+        assistantId: assistantId,
+        assistantMessage: startedMessage,
+        profile: profile,
+        task: task,
+        sessionId: sessionId,
+        providerKey: providerKey,
+        modelId: modelId,
+        input: input,
+      ),
+    );
+    return ChatActionResult.success(startedMessage);
+  }
+
+  Future<void> _runDelegatedSubagent({
+    required Conversation conversation,
+    required SettingsProvider settings,
+    required Assistant? assistant,
+    required String? assistantId,
+    required ChatMessage assistantMessage,
+    required SubagentProfile profile,
+    required String task,
+    required String? sessionId,
+    required String providerKey,
+    required String modelId,
+    required ChatInputData input,
+  }) async {
+    final l10n = AppLocalizations.of(contextProvider);
+    final failedText =
+        l10n?.subagentDelegatedFailed ??
+        'The subagent could not complete this task.';
+    final messageId = assistantMessage.id;
+    stream_ctrl.StreamingState? state;
+    String? toolCallId;
+    Map<String, dynamic>? toolArgs;
+    var toolEventWritten = false;
+    var cancelledExternally = false;
+
+    try {
+      if (_cancelledDelegatedSubagentIds.remove(messageId)) {
+        cancelledExternally = true;
+        return;
+      }
+      final prepared = await messageGenerationService
+          .prepareApiMessagesWithInjections(
+            messages: _messages,
+            assistantMessageId: messageId,
+            versionSelections: _versionSelections,
+            currentConversation: conversation,
+            settings: settings,
+            assistant: assistant,
+            assistantId: assistantId,
+            providerKey: providerKey,
+            modelId: modelId,
+            enableNativeInputs: true,
+          );
+      final launch = prepared.subagentLaunch;
+      if (launch == null) {
+        throw StateError('subagent launch context is unavailable');
+      }
+      final userImagePaths = messageGenerationService.buildUserImagePaths(
+        input: input,
+        lastUserImagePaths: prepared.lastUserImagePaths,
+        settings: settings,
+      );
+      final ctx = messageGenerationService.buildGenerationContext(
+        assistantMessage: assistantMessage,
+        prepared: prepared,
+        userImagePaths: userImagePaths,
+        providerKey: providerKey,
+        modelId: modelId,
+        assistant: assistant,
+        settings: settings,
+        supportsReasoning: false,
+        enableReasoning: false,
+        generateTitleOnFinish: true,
+      );
+      final localState = stream_ctrl.StreamingState(ctx);
+      state = localState;
+
+      toolCallId = 'delegate_${DateTime.now().microsecondsSinceEpoch}';
+      toolArgs = <String, dynamic>{
+        'agent': profile.id,
+        'task': task,
+        if (sessionId != null && sessionId.trim().isNotEmpty)
+          'session_id': sessionId.trim(),
+      };
+      final initialTrace = buildSubagentTraceJson(
+        status: 'running',
+        profileId: profile.id,
+        trace: const <SubagentTraceStep>[],
+        toolCalls: 0,
+      );
+      streamController.setToolParts(messageId, [
+        ToolUIPart(
+          id: toolCallId,
+          toolName: delegateSubagentToolName,
+          arguments: toolArgs,
+          loading: true,
+          subagentTrace: initialTrace,
+        ),
+      ]);
+      streamController.streamingContentNotifier.notifyToolPartsUpdated(
+        messageId,
+      );
+      await chatService.upsertToolEvent(
+        messageId,
+        id: toolCallId,
+        name: delegateSubagentToolName,
+        arguments: toolArgs,
+        content: null,
+        extras: <String, dynamic>{'subagentTrace': initialTrace},
+      );
+      toolEventWritten = true;
+      if (_cancelledDelegatedSubagentIds.remove(messageId)) {
+        cancelledExternally = true;
+        await _finishDelegatedToolCard(
+          messageId: messageId,
+          toolCallId: toolCallId,
+          resultJson: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'subagent_cancelled',
+            'message': 'The delegated helper was stopped.',
+            'tool': delegateSubagentToolName,
+          }),
+          trace: buildSubagentTraceJson(
+            status: 'stopped',
+            profileId: profile.id,
+            trace: const <SubagentTraceStep>[],
+          ),
+          interrupted: true,
+        );
+        return;
+      }
+
+      final result = await generationController.toolHandlerService
+          .runDelegatedSubagent(
+            settings: settings,
+            assistant: assistant,
+            args: toolArgs,
+            launch: launch,
+            conversationId: conversation.id,
+            workspacePath: prepared.workspacePath,
+            messageId: messageId,
+            toolCallId: toolCallId,
+          );
+      if (_cancelledDelegatedSubagentIds.remove(messageId)) {
+        cancelledExternally = true;
+        await _finishDelegatedToolCard(
+          messageId: messageId,
+          toolCallId: toolCallId,
+          resultJson: jsonEncode(<String, dynamic>{
+            'type': 'tool_error',
+            'error': 'subagent_cancelled',
+            'message': 'The delegated helper was stopped.',
+            'tool': delegateSubagentToolName,
+          }),
+          trace: buildSubagentTraceJson(
+            status: 'stopped',
+            profileId: profile.id,
+            trace: const <SubagentTraceStep>[],
+          ),
+          interrupted: true,
+        );
+        return;
+      }
+
+      final outcome = result.outcome;
+      final trace =
+          outcome?.toTraceJson() ??
+          buildSubagentTraceJson(
+            status: 'error',
+            profileId: profile.id,
+            trace: const <SubagentTraceStep>[],
+          );
+      final summary = (outcome?.summary ?? '').trim();
+      final finalText = summary.isNotEmpty
+          ? summary
+          : (outcome != null && outcome.error == null
+                ? (l10n?.subagentDelegatedEmpty ?? failedText)
+                : failedText);
+      final tokens = outcome?.tokensUsed ?? 0;
+      await chatService.upsertToolEvent(
+        messageId,
+        id: toolCallId,
+        name: delegateSubagentToolName,
+        arguments: toolArgs,
+        content: result.json,
+        extras: <String, dynamic>{
+          'subagentTrace': trace,
+          if (outcome != null) 'subagentTokens': tokens,
+        },
+      );
+      await _finishDelegatedToolCard(
+        messageId: messageId,
+        toolCallId: toolCallId,
+        resultJson: result.json,
+        trace: trace,
+        interrupted: outcome?.error != null,
+      );
+
+      streamController.streamingContentNotifier.updateContent(
+        messageId,
+        finalText,
+        tokens,
+      );
+      localState.fullContentRaw = finalText;
+      localState.totalTokens = tokens;
+      await _finishStreaming(localState);
+    } catch (e, st) {
+      FlutterLogger.log('delegated subagent failed: $e\n$st', tag: 'subagent');
+      if (toolEventWritten && toolCallId != null && toolArgs != null) {
+        final errorJson = jsonEncode(<String, dynamic>{
+          'type': 'tool_error',
+          'error': 'delegated_subagent_failed',
+          'message': e.toString(),
+          'tool': delegateSubagentToolName,
+        });
+        try {
+          await chatService.upsertToolEvent(
+            messageId,
+            id: toolCallId,
+            name: delegateSubagentToolName,
+            arguments: toolArgs,
+            content: errorJson,
+            extras: <String, dynamic>{
+              'subagentTrace': buildSubagentTraceJson(
+                status: 'error',
+                profileId: profile.id,
+                trace: const <SubagentTraceStep>[],
+              ),
+            },
+          );
+        } catch (_) {}
+        await _finishDelegatedToolCard(
+          messageId: messageId,
+          toolCallId: toolCallId,
+          resultJson: errorJson,
+          trace: buildSubagentTraceJson(
+            status: 'error',
+            profileId: profile.id,
+            trace: const <SubagentTraceStep>[],
+          ),
+          interrupted: true,
+        );
+      }
+      if (_cancelledDelegatedSubagentIds.remove(messageId)) {
+        cancelledExternally = true;
+        return;
+      }
+      if (state != null) {
+        state.fullContentRaw = failedText;
+        state.totalTokens = 0;
+        await _finishStreaming(state);
+      } else {
+        await chatService.updateMessage(
+          messageId,
+          content: failedText,
+          isStreaming: false,
+        );
+        streamController.markStreamingEnded(messageId);
+        streamController.cleanupTimers(messageId);
+        _setConversationLoading(conversation.id, false);
+        final idx = _messages.indexWhere((m) => m.id == messageId);
+        if (idx != -1) {
+          _messages[idx] = _messages[idx].copyWith(
+            content: failedText,
+            isStreaming: false,
+          );
+          onMessagesChanged?.call();
+        }
+      }
+    } finally {
+      _activeDelegatedSubagentIds.remove(messageId);
+      if (_cancelledDelegatedSubagentIds.remove(messageId)) {
+        cancelledExternally = true;
+      }
+      final finishedAt = DateTime.now();
+      try {
+        await chatService.updateMessage(
+          messageId,
+          processFinishedAt: finishedAt,
+        );
+      } catch (_) {}
+      final idx = _messages.indexWhere((m) => m.id == messageId);
+      if (idx != -1) {
+        _messages[idx] = _messages[idx].copyWith(processFinishedAt: finishedAt);
+        onMessagesChanged?.call();
+      }
+      if (!cancelledExternally) notifyTurnEnded(conversation.id);
+      onStreamFinished?.call();
+    }
+  }
+
+  Future<void> _finishDelegatedToolCard({
+    required String messageId,
+    required String toolCallId,
+    required String resultJson,
+    required Map<String, dynamic> trace,
+    required bool interrupted,
+  }) async {
+    final parts = List<ToolUIPart>.of(
+      streamController.getToolParts(messageId) ?? const <ToolUIPart>[],
+    );
+    final idx = parts.indexWhere((p) => p.id == toolCallId);
+    if (idx != -1) {
+      parts[idx] = parts[idx].copyWith(
+        content: resultJson,
+        loading: false,
+        contentLoaded: true,
+        status: interrupted ? kPartStatusInterrupted : kPartStatusCompleted,
+        subagentTrace: trace,
+      );
+      streamController.setToolParts(messageId, parts);
+      streamController.streamingContentNotifier.notifyToolPartsUpdated(
+        messageId,
+      );
+    }
   }
 
   // ============================================================================
@@ -1461,6 +1899,16 @@ class ChatActions {
     // A foreground shell command is part of the generation: stopping it must
     // terminate the process tree immediately, not wait for its timeout.
     generationController.cancelActiveShellRuns();
+    // A direct @profile run may still be assembling its context; mark the
+    // placeholder so the run cannot start after Stop was pressed.
+    for (final m in _messages.reversed) {
+      if (m.role == 'assistant' &&
+          m.isStreaming &&
+          _activeDelegatedSubagentIds.contains(m.id)) {
+        _cancelledDelegatedSubagentIds.add(m.id);
+        break;
+      }
+    }
 
     // Turn queue (§3.5 F3/F10): Stop always retracts steering echoes, puts
     // their text back on the queue head, and pauses the queue whenever
@@ -2089,6 +2537,8 @@ class ChatActions {
       text: text,
       imagePaths: existing.input.imagePaths,
       documents: existing.input.documents,
+      subagentSessionId: existing.input.subagentSessionId,
+      subagentSessionProfileId: existing.input.subagentSessionProfileId,
     );
     if (turnQueue.updateInput(conversationId, id, updated)) {
       onQueueChanged?.call();

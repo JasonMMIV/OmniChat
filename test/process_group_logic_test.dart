@@ -77,10 +77,10 @@ void main() {
 
       expect(model.visible, isTrue);
       expect(model.entries, hasLength(2));
-      expect(
-        model.entries.map((e) => e.runtimeType).toList(),
-        [ToolEntry, ToolEntry],
-      );
+      expect(model.entries.map((e) => e.runtimeType).toList(), [
+        ToolEntry,
+        ToolEntry,
+      ]);
     });
 
     test('out-of-range toolStartIndex is clamped, never throws', () {
@@ -112,12 +112,13 @@ void main() {
   });
 
   group('buildProcessGroup — filters and visibility (B3)', () {
-    test('builtin_search and legacy workspace_snapshot rows are excluded',
-        () {
-      final model = _build(tools: [
-        _tool(0, toolName: 'builtin_search'),
-        _tool(1, toolName: 'workspace_snapshot'),
-      ]);
+    test('builtin_search and legacy workspace_snapshot rows are excluded', () {
+      final model = _build(
+        tools: [
+          _tool(0, toolName: 'builtin_search'),
+          _tool(1, toolName: 'workspace_snapshot'),
+        ],
+      );
 
       expect(model.visible, isFalse);
       expect(model.entries, isEmpty);
@@ -135,6 +136,26 @@ void main() {
       expect(model.entries.single, isA<ThoughtEntry>());
     });
 
+    test(
+      'a delegated card survives showToolCards=false and keeps the group open',
+      () {
+        final model = _build(
+          tools: const [
+            ProcessTool(
+              index: 0,
+              toolName: 'delegate_subagent',
+              keepOpen: true,
+            ),
+          ],
+          showToolCards: false,
+        );
+
+        expect(model.visible, isTrue);
+        expect(model.keepOpen, isTrue);
+        expect(model.entries.single, isA<ToolEntry>());
+      },
+    );
+
     test('showThinkingCards=false drops thought entries, keeps tools', () {
       final model = _build(
         thoughts: const [ProcessThought(text: 'A', loading: false)],
@@ -146,25 +167,24 @@ void main() {
       expect(model.entries.single, isA<ToolEntry>());
     });
 
-    test('B3: both filters on with only filtered rows → group not rendered',
-        () {
-      final model = _build(
-        thoughts: const [ProcessThought(text: 'A', loading: false)],
-        tools: [_tool(0, toolName: 'builtin_search')],
-        showThinkingCards: false,
-        showToolCards: false,
-      );
+    test(
+      'B3: both filters on with only filtered rows → group not rendered',
+      () {
+        final model = _build(
+          thoughts: const [ProcessThought(text: 'A', loading: false)],
+          tools: [_tool(0, toolName: 'builtin_search')],
+          showThinkingCards: false,
+          showToolCards: false,
+        );
 
-      expect(model.visible, isFalse);
-    });
+        expect(model.visible, isFalse);
+      },
+    );
   });
 
   group('buildProcessGroup — live verdict matrix', () {
     test('loading tool while streaming → live', () {
-      final model = _build(
-        tools: [_tool(0, loading: true)],
-        isStreaming: true,
-      );
+      final model = _build(tools: [_tool(0, loading: true)], isStreaming: true);
       expect(model.live, isTrue);
     });
 
@@ -176,26 +196,30 @@ void main() {
       expect(model.live, isTrue);
     });
 
-    test('everything finished + answer text + streaming → not live (Worked)',
-        () {
-      final model = _build(
-        thoughts: const [ProcessThought(text: 'A', loading: false)],
-        tools: [_tool(0)],
-        isStreaming: true,
-        hasAnswerText: true,
-      );
-      expect(model.live, isFalse);
-    });
+    test(
+      'everything finished + answer text + streaming → not live (Worked)',
+      () {
+        final model = _build(
+          thoughts: const [ProcessThought(text: 'A', loading: false)],
+          tools: [_tool(0)],
+          isStreaming: true,
+          hasAnswerText: true,
+        );
+        expect(model.live, isFalse);
+      },
+    );
 
-    test('finished group + streaming tail without answer text → live (gap)',
-        () {
-      final model = _build(
-        tools: [_tool(0)],
-        isStreaming: true,
-        hasAnswerText: false,
-      );
-      expect(model.live, isTrue);
-    });
+    test(
+      'finished group + streaming tail without answer text → live (gap)',
+      () {
+        final model = _build(
+          tools: [_tool(0)],
+          isStreaming: true,
+          hasAnswerText: false,
+        );
+        expect(model.live, isTrue);
+      },
+    );
 
     test('historical message (not streaming) → never live', () {
       final model = _build(
@@ -251,15 +275,18 @@ void main() {
     final thinkStart = DateTime(2026, 10, 5, 9);
     final toolStart = DateTime(2026, 10, 5, 8, 59, 30);
 
-    test('prefers the first process event (a tool call before any thinking)', () {
-      expect(
-        resolveProcessStartAt(
-          processStartedAt: toolStart,
-          reasoningStartAt: thinkStart,
-        ),
-        toolStart,
-      );
-    });
+    test(
+      'prefers the first process event (a tool call before any thinking)',
+      () {
+        expect(
+          resolveProcessStartAt(
+            processStartedAt: toolStart,
+            reasoningStartAt: thinkStart,
+          ),
+          toolStart,
+        );
+      },
+    );
 
     test('tool-only turn (no reasoning at all) still gets an anchor', () {
       expect(
@@ -373,6 +400,32 @@ void main() {
       );
     });
 
+    test('a delegated card keeps a finished group open by default', () {
+      expect(
+        resolveProcessOpen(
+          explicitOpen: null,
+          forcedOpen: false,
+          keepOpen: true,
+          live: false,
+          autoCollapse: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('an explicit collapse pin wins over keepOpen', () {
+      expect(
+        resolveProcessOpen(
+          explicitOpen: false,
+          forcedOpen: false,
+          keepOpen: true,
+          live: false,
+          autoCollapse: true,
+        ),
+        isFalse,
+      );
+    });
+
     test('B2: no pin + finished + autoCollapse off → stays open', () {
       expect(
         resolveProcessOpen(
@@ -410,8 +463,7 @@ void main() {
   });
 
   group('toolRequiresUserAction — persisted-content predicates', () {
-    test('ask_user: pending payload and empty content both require action',
-        () {
+    test('ask_user: pending payload and empty content both require action', () {
       final pending = jsonEncode(<String, dynamic>{
         'type': askUserPendingType,
         'questions': <Map<String, dynamic>>[],
@@ -479,8 +531,10 @@ void main() {
         ),
         isFalse,
       );
-      expect(toolRequiresUserAction(toolName: 'search_web', content: null),
-          isFalse);
+      expect(
+        toolRequiresUserAction(toolName: 'search_web', content: null),
+        isFalse,
+      );
       expect(
         toolRequiresUserAction(toolName: 'file_read', content: 'not json'),
         isFalse,

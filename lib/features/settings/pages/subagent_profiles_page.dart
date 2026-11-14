@@ -9,8 +9,8 @@ import '../../../l10n/app_localizations.dart';
 
 /// P1-1 (A1): the subagent profile registry editor.
 ///
-/// Reachable from Add-ons → Advanced Features → "Subagent profiles".
-/// A profile decides a helper's tools, permissions and (optionally) a
+/// Reachable from Settings → "Subagent profiles" (immediately before the AI
+/// Team entry). A profile decides a helper's tools, permissions and (optionally) a
 /// pre-bound provider/model. Built-ins are always present; they may be edited
 /// and reset, but their id never changes. Changes apply to the NEXT spawn —
 /// a running helper keeps the snapshot it started with.
@@ -245,25 +245,33 @@ class _SubagentProfileEditorPageState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final providers = widget.settings.providerConfigs;
+    // Only providers the user has enabled are selectable. Disabled configs
+    // stay in storage (and can be re-enabled) but must not be offered here:
+    // a helper bound to one could never run.
+    final providers = <String, ProviderConfig>{
+      for (final entry in widget.settings.providerConfigs.entries)
+        if (entry.value.enabled) entry.key: entry.value,
+    };
     final providerIds = providers.keys.toList()..sort();
-    // A profile can outlive the provider it was bound to (deleted config or a
-    // backup restored on another device). Treat the missing provider as
-    // "follow conversation" for display so the dropdown never asserts; the
-    // save path reports the problem instead of persisting a dangling id.
+    // A profile can outlive the provider it was bound to (deleted/disabled
+    // config or a backup restored on another device). Treat it as "follow
+    // conversation" for display so the dropdown never asserts; the save path
+    // reports the problem instead of persisting a dangling id.
     final selectedProvider =
         (_providerKey != null && providers.containsKey(_providerKey))
         ? _providerKey
         : null;
+    // P1-1: only models the user actually added and left enabled. A stale
+    // model id is not inserted back into the list; save-time validation asks
+    // the user to pick a currently enabled model.
     final models = <String>[
-      if (selectedProvider != null) ...[
-        ...?providers[selectedProvider]?.models,
-        ...?providers[selectedProvider]?.modelOverrides.keys,
-      ],
-    ].toSet().toList()..sort();
-    if (_modelId != null && !models.contains(_modelId)) {
-      models.insert(0, _modelId!);
-    }
+      if (selectedProvider != null)
+        ...providers[selectedProvider]!.enabledModels,
+    ]..sort();
+    final selectedModel = (_modelId != null && models.contains(_modelId))
+        ? _modelId
+        : null;
+    final bindingWarning = _bindingWarning(l10n);
 
     return Scaffold(
       appBar: AppBar(
@@ -283,6 +291,14 @@ class _SubagentProfileEditorPageState
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(
                   (_liveError ?? _error)!,
+                  style: TextStyle(fontSize: 12, color: cs.error),
+                ),
+              )
+            else if (bindingWarning != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  bindingWarning,
                   style: TextStyle(fontSize: 12, color: cs.error),
                 ),
               ),
@@ -325,7 +341,14 @@ class _SubagentProfileEditorPageState
             ),
             const Divider(height: 20),
             _sectionLabel(context, l10n.subagentProfileModel),
-            _modelPicker(context, l10n, providerIds, models, selectedProvider),
+            _modelPicker(
+              context,
+              l10n,
+              providerIds,
+              models,
+              selectedProvider,
+              selectedModel,
+            ),
             const Divider(height: 20),
             _sectionLabel(context, l10n.subagentProfileAllowedTools),
             SwitchListTile(
@@ -502,6 +525,7 @@ class _SubagentProfileEditorPageState
     List<String> providerIds,
     List<String> models,
     String? selectedProvider,
+    String? selectedModel,
   ) {
     return Column(
       children: [
@@ -539,9 +563,9 @@ class _SubagentProfileEditorPageState
           }),
         ),
         const SizedBox(height: 10),
-        if (selectedProvider != null)
+        if (selectedProvider != null && models.isNotEmpty)
           DropdownButtonFormField<String>(
-            value: _modelId,
+            value: selectedModel,
             isExpanded: true,
             decoration: InputDecoration(
               labelText: l10n.subagentProfileModel,
@@ -625,13 +649,8 @@ class _SubagentProfileEditorPageState
         int.tryParse(_tokenBudget.text.trim()) == null) {
       return l10n.subagentProfileTokenBudgetRange;
     }
-    if (_providerKey != null &&
-        !widget.settings.providerConfigs.containsKey(_providerKey)) {
-      return l10n.subagentProfileProviderMissing;
-    }
-    if (_providerKey != null && (_modelId ?? '').trim().isEmpty) {
-      return l10n.subagentProfileModelPair;
-    }
+    final pairError = _providerModelError(l10n);
+    if (pairError != null) return pairError;
     final error = SubagentProfiles.validate(
       _buildProfile(id: id, builtIn: SubagentProfiles.builtInIds.contains(id)),
       isNew: _isNew,
@@ -655,9 +674,9 @@ class _SubagentProfileEditorPageState
       setState(() => _error = l10n.subagentProfileIdInvalid);
       return;
     }
-    if (_providerKey != null &&
-        !widget.settings.providerConfigs.containsKey(_providerKey)) {
-      setState(() => _error = l10n.subagentProfileProviderMissing);
+    final pairError = _providerModelError(l10n);
+    if (pairError != null) {
+      setState(() => _error = pairError);
       return;
     }
     final profile = _buildProfile(
@@ -669,11 +688,6 @@ class _SubagentProfileEditorPageState
       setState(() => _error = _errorText(l10n, error));
       return;
     }
-    if (_providerKey != null && (_modelId ?? '').isEmpty) {
-      setState(() => _error = l10n.subagentProfileModelPair);
-      return;
-    }
-
     final current = widget.settings.subagentProfiles;
     final existingIds = current.map((p) => p.id).toSet();
     if (_isNew && existingIds.contains(id)) {
@@ -692,6 +706,51 @@ class _SubagentProfileEditorPageState
     await widget.settings.setSubagentProfiles(next);
     if (!mounted) return;
     Navigator.of(context).maybePop();
+  }
+
+  /// Immediate warning for a saved binding that is no longer usable. Unlike
+  /// [_providerModelError], this avoids nagging before the user has picked a
+  /// model; the model picker already shows the no-enabled-models state.
+  String? _bindingWarning(AppLocalizations l10n) {
+    final key = _providerKey;
+    if (key == null) return null;
+    final cfg = widget.settings.providerConfigs[key];
+    if (cfg == null || !cfg.enabled) {
+      return l10n.subagentProfileProviderMissing;
+    }
+    final model = (_modelId ?? '').trim();
+    if (model.isNotEmpty) {
+      return cfg.isModelEnabled(model)
+          ? null
+          : l10n.subagentProfileModelUnavailable;
+    }
+    if (cfg.enabledModels.isEmpty) {
+      return l10n.subagentProfileNoEnabledModels;
+    }
+    return null;
+  }
+
+  /// Validates the provider/model pair against the *active* registry. A
+  /// disabled provider/model is not usable by a runtime helper even though it
+  /// still exists in storage, so the editor treats it as unavailable.
+  String? _providerModelError(AppLocalizations l10n) {
+    final key = _providerKey;
+    if (key == null) return null;
+    final cfg = widget.settings.providerConfigs[key];
+    if (cfg == null || !cfg.enabled) {
+      return l10n.subagentProfileProviderMissing;
+    }
+    final model = (_modelId ?? '').trim();
+    if (model.isNotEmpty) {
+      if (!cfg.isModelEnabled(model)) {
+        return l10n.subagentProfileModelUnavailable;
+      }
+      return null;
+    }
+    if (cfg.enabledModels.isEmpty) {
+      return l10n.subagentProfileNoEnabledModels;
+    }
+    return l10n.subagentProfileModelPair;
   }
 
   String _errorText(AppLocalizations l10n, String code) {
@@ -769,10 +828,16 @@ class _SubagentProfileEditorPageState
       setState(() => _error = _errorText(l10n, error));
       return;
     }
-    if (copy.providerKey != null &&
-        !widget.settings.providerConfigs.containsKey(copy.providerKey)) {
-      setState(() => _error = l10n.subagentProfileProviderMissing);
-      return;
+    if (copy.providerKey != null) {
+      final cfg = widget.settings.providerConfigs[copy.providerKey];
+      if (cfg == null || !cfg.enabled) {
+        setState(() => _error = l10n.subagentProfileProviderMissing);
+        return;
+      }
+      if (copy.modelId == null || !cfg.isModelEnabled(copy.modelId!)) {
+        setState(() => _error = l10n.subagentProfileModelUnavailable);
+        return;
+      }
     }
     await widget.settings.setSubagentProfiles(<SubagentProfile>[
       ...current,

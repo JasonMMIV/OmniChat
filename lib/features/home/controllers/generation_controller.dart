@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/services/api/chat_stream_chunk.dart' show ToolCallHandler;
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_message.dart';
@@ -35,6 +36,15 @@ class GenerationController {
   }) : toolHandlerService = ToolHandlerService(
          contextProvider: contextProvider,
          chatService: chatService,
+         // Child tool progress is UI-only: fold it into the parent's
+         // spawn_subagent card without touching the model-facing transcript.
+         onSubagentTrace: (messageId, toolCallId, trace) {
+           streamController.updateToolPartExtras(
+             messageId,
+             toolCallId,
+             subagentTrace: trace,
+           );
+         },
        );
 
   final ChatService chatService;

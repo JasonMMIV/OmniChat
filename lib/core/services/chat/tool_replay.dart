@@ -16,10 +16,14 @@ import 'todo_models.dart';
 /// * `builtin_search` — UI/citation card for a provider-hosted search. The
 ///   server already owns that call; replaying it as a client tool produces a
 ///   dangling `tool_use`/`functionCall` with no matching result.
+/// * `delegate_subagent` — user-initiated `@profile` delegation is a UI-only
+///   event; the final answer is already the assistant message content, so
+///   replaying the event would fabricate a model tool call and duplicate it.
 const Set<String> kNonReplayableToolNames = <String>{
   todoToolName,
   'workspace_snapshot',
   'builtin_search',
+  delegateSubagentToolName,
 };
 
 /// One replayable tool call/result pair.

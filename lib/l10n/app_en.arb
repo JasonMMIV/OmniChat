@@ -3083,6 +3083,7 @@
   "composerSendNowTooltip": "Send now (Ctrl/Cmd+Enter)",
   "composerSendNowAttachmentsHint": "Attachments can only be queued",
   "composerSendNowCommandHint": "Slash commands can only be queued",
+  "composerSendNowDelegationHint": "Subagent mentions can only be queued",
   "composerSendNowTeamHint": "Unavailable during AI Team",
   "queueDockTitle": "{n} queued",
   "@queueDockTitle": {
@@ -3102,14 +3103,6 @@
   "queueDockRemove": "Remove",
   "queueDockPromote": "Move to front",
   "queueDockSendFailed": "Queued message failed to send; moved back to the front",
-  "subagentTraceStep": "{tool} · {ms} ms · {chars} chars",
-  "@subagentTraceStep": {
-    "placeholders": {
-      "tool": {"type": "String"},
-      "ms": {"type": "String"},
-      "chars": {"type": "String"}
-    }
-  },
   "subagentTraceMore": "(+{count} more)",
   "@subagentTraceMore": {
     "placeholders": {
@@ -3125,6 +3118,18 @@
   "subagentTraceTokens": "{tokens} tokens",
   "@subagentTraceTokens": { "placeholders": { "tokens": { "type": "String" } } },
   "subagentTraceEmpty": "No tool calls recorded.",
+  "subagentTraceRunning": "Running…",
+  "subagentTraceStepMeta": "{ms} ms · {chars} chars",
+  "@subagentTraceStepMeta": { "placeholders": { "ms": { "type": "String" }, "chars": { "type": "String" } } },
+  "subagentTraceRunningTool": "Running {tool}…",
+  "@subagentTraceRunningTool": { "placeholders": { "tool": { "type": "String" } } },
+  "subagentDelegatedTo": "Delegated to {name}",
+  "@subagentDelegatedTo": { "placeholders": { "name": { "type": "String" } } },
+  "subagentDelegatedContinue": "Continue",
+  "subagentDelegatedContinueHint": "Ask a follow-up in this session",
+  "subagentDelegatedFailed": "The subagent could not complete this task.",
+  "subagentDelegatedEmpty": "The subagent returned no result.",
+  "toolNameDelegateSubagent": "Delegated subagent",
   "subagentProfilesTitle": "Subagent profiles",
   "@subagentProfilesTitle": { "description": "Settings page listing named subagent profiles." },
   "subagentProfilesDescription": "Named helpers decide the tool set, permissions and model used by spawn_subagent.",
@@ -3136,9 +3141,9 @@
   "subagentProfileInstructions": "Instructions",
   "subagentProfileInstructionsHint": "Extra guidance injected into the helper's system prompt.",
   "subagentProfileAllowedTools": "Allowed tools",
-  "subagentProfileAllowedToolsHint": "Empty = all child tools. Read-only profiles always refuse write and shell tools.",
+  "subagentProfileAllowedToolsHint": "Empty = all permitted child tools. Read-only profiles always block write, shell, and memory-write tools.",
   "subagentProfileReadOnly": "Read-only",
-  "subagentProfileReadOnlySubtitle": "Refuse write and shell tools even if they are advertised.",
+  "subagentProfileReadOnlySubtitle": "Always blocks write, shell, and memory-write tools.",
   "subagentProfileModel": "Model",
   "subagentProfileProvider": "Provider",
   "subagentProfileFollowConversation": "Follow conversation",
@@ -3159,12 +3164,18 @@
   "subagentProfileCustomTools": "Other tool names",
   "subagentProfileCustomToolsHint": "Comma-separated; use this for MCP or memory tools.",
   "subagentProfileWriteBlocked": "Blocked by read-only.",
-  "subagentProfileProviderMissing": "The selected provider no longer exists. Choose another one or follow the conversation.",
+  "subagentProfileProviderMissing": "The selected provider is no longer available (deleted or disabled). Choose another one or follow the conversation.",
+  "subagentProfileNoEnabledModels": "No enabled models for this provider. Add or enable a model in Providers first.",
+  "subagentProfileModelUnavailable": "This model is no longer enabled. Pick another model.",
   "subagentProfileMaxStepsRange": "Max steps must be between 1 and 40.",
   "subagentProfileTokenBudgetRange": "Token budget must be a positive number.",
   "subagentProfileValueTooLong": "This value is too long.",
   "subagentProfileIdReserved": "This id is reserved by a built-in profile.",
   "subagentProfileLimitReached": "Limit reached (20 profiles).",
   "subagentProfileToolsCount": "{count} tools",
-  "@subagentProfileToolsCount": { "placeholders": { "count": { "type": "String" } } }
+  "@subagentProfileToolsCount": { "placeholders": { "count": { "type": "String" } } },
+  "addonsSubagentEnable": "Enable subagents",
+  "addonsSubagentProfileCount": "{count} profiles",
+  "@addonsSubagentProfileCount": { "placeholders": { "count": { "type": "String" } } },
+  "addonsSubagentPickHint": "Pick a profile to insert an @mention."
 }

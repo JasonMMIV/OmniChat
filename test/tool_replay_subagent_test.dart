@@ -55,6 +55,19 @@ void main() {
       expect(pairs.single.content.length, 5000);
     });
 
+    test('a direct @profile delegation is UI-only and never replayed', () {
+      final pairs = buildToolReplayPairs([
+        {
+          'id': 'delegate_1',
+          'name': delegateSubagentToolName,
+          'arguments': {'agent': 'explore', 'task': 'x'},
+          'content': '{"type":"subagent_result","summary":"done"}',
+          'approvalState': 'auto',
+        },
+      ], messageId: 'm1');
+      expect(pairs, isEmpty);
+    });
+
     test('a short helper result is not rewritten', () {
       final content = jsonEncode({
         'type': 'subagent_result',

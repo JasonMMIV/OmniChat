@@ -21,8 +21,21 @@ void main() {
       'subagentProfileTokenBudgetRange',
       'subagentProfileIdInUse',
       'subagentTraceTitle',
-      'subagentTraceStep',
+      'subagentTraceStepMeta',
+      'subagentTraceRunning',
+      'subagentTraceRunningTool',
       'subagentTraceMore',
+      'subagentProfileNoEnabledModels',
+      'subagentProfileModelUnavailable',
+      'subagentDelegatedTo',
+      'subagentDelegatedContinue',
+      'subagentDelegatedFailed',
+      'subagentDelegatedEmpty',
+      'toolNameDelegateSubagent',
+      'addonsSubagentEnable',
+      'addonsSubagentProfileCount',
+      'addonsSubagentPickHint',
+      'composerSendNowDelegationHint',
     ];
     for (final key in required) {
       expect(en[key], isA<String>(), reason: 'en.$key');

@@ -296,7 +296,7 @@
 **目標**：泛化 AI Team 串行調度（ADR 延續 §5.1）——模型可派出子代理執行隔離任務，主對話不收原始工具軌跡。
 
 **實作內容**：
-1. 新工具 `spawn_subagent`：子代理**全新 context**、角色 prompt、回傳**摘要**；主對話只收摘要（省 token、隔離雜訊）。
+1. 新工具 `spawn_subagent`：子代理**全新 context**、角色 prompt、回傳**最終結果**；主對話只收最終結果（省 token、隔離雜訊）。
 2. 調度沿用既有串行先例（`AiTeamController`／`chat_actions._runProposerSilently`）——子代理與主對話外部程序/工具呼叫互斥（§5.1 never-parallel）。
 3. 權限繼承：子代理工具集與審批政策繼承父代 generation 快照（比照 AI Team slot 繼承——deny/非成員回傳 result 不中斷流程）；子代理不彈審批卡（或暫停上拋主對話——細部計畫裁定）。
 4. 候選用途：檔案批量摘要、平行翻譯（串行逐檔）、research fan-out。

@@ -101,6 +101,14 @@ class ChatInputBarController {
     _state?._clearFiles();
   }
 
+  /// Insert `@<profileId> ` at the cursor. Used by the Add-ons subagent menu
+  /// and by the delegated-result Continue action.
+  void insertSubagentMention(String profileId) {
+    final id = profileId.trim();
+    if (id.isEmpty) return;
+    _state?._insertSubagentMention(id);
+  }
+
   /// Whether the composer currently holds an audio attachment. Lets the
   /// parent resolve the (non-trivial) audio policy only when it matters.
   bool get hasAudioAttachments {
@@ -480,6 +488,49 @@ class _ChatInputBarState extends State<ChatInputBar>
     _docs.clear();
   }
 
+  void _insertSubagentMention(String profileId) {
+    final mention = '@$profileId';
+    final text = _controller.text;
+    if (text.trimLeft().toLowerCase().startsWith(mention)) {
+      widget.focusNode?.requestFocus();
+      return;
+    }
+    // Replace an existing leading mention instead of stacking two of them
+    // (Continue → pick another profile must yield one unambiguous task).
+    final leadingMention = RegExp(r'^\s*@[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}\s*')
+        .firstMatch(text);
+    if (leadingMention != null) {
+      final rest = text.substring(leadingMention.end);
+      final next = '$mention ${rest.trimLeft()}';
+      _controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+      setState(() {});
+      widget.focusNode?.requestFocus();
+      return;
+    }
+    final value = _controller.value;
+    final selection = value.selection;
+    final offset = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final before = text.substring(0, offset);
+    final after = text.substring(end);
+    final prefix =
+        before.isEmpty || before.endsWith(' ') || before.endsWith('\n')
+        ? ''
+        : ' ';
+    final inserted = '$prefix$mention ';
+    final next = before + inserted + after;
+    final cursor = before.length + inserted.length;
+    _controller.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: cursor),
+    );
+    setState(() {});
+    widget.focusNode?.requestFocus();
+  }
+
   // Keep focus on desktop so user can continue typing.
   void _refocusAfterSend() {
     try {
@@ -504,6 +555,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     final tooltip = switch (reason) {
       SendNowBlockReason.attachments => l10n.composerSendNowAttachmentsHint,
       SendNowBlockReason.command => l10n.composerSendNowCommandHint,
+      SendNowBlockReason.delegation => l10n.composerSendNowDelegationHint,
       SendNowBlockReason.team => l10n.composerSendNowTeamHint,
       _ => l10n.composerSendNowTooltip,
     };

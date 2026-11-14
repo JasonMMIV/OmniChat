@@ -7239,6 +7239,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composerSendNowCommandHint => 'Slash commands can only be queued';
 
   @override
+  String get composerSendNowDelegationHint =>
+      'Subagent mentions can only be queued';
+
+  @override
   String get composerSendNowTeamHint => 'Unavailable during AI Team';
 
   @override
@@ -7276,11 +7280,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Queued message failed to send; moved back to the front';
 
   @override
-  String subagentTraceStep(String tool, String ms, String chars) {
-    return '$tool · $ms ms · $chars chars';
-  }
-
-  @override
   String subagentTraceMore(String count) {
     return '(+$count more)';
   }
@@ -7305,6 +7304,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subagentTraceEmpty => 'No tool calls recorded.';
+
+  @override
+  String get subagentTraceRunning => 'Running…';
+
+  @override
+  String subagentTraceStepMeta(String ms, String chars) {
+    return '$ms ms · $chars chars';
+  }
+
+  @override
+  String subagentTraceRunningTool(String tool) {
+    return 'Running $tool…';
+  }
+
+  @override
+  String subagentDelegatedTo(String name) {
+    return 'Delegated to $name';
+  }
+
+  @override
+  String get subagentDelegatedContinue => 'Continue';
+
+  @override
+  String get subagentDelegatedContinueHint => 'Ask a follow-up in this session';
+
+  @override
+  String get subagentDelegatedFailed =>
+      'The subagent could not complete this task.';
+
+  @override
+  String get subagentDelegatedEmpty => 'The subagent returned no result.';
+
+  @override
+  String get toolNameDelegateSubagent => 'Delegated subagent';
 
   @override
   String get subagentProfilesTitle => 'Subagent profiles';
@@ -7340,14 +7373,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subagentProfileAllowedToolsHint =>
-      'Empty = all child tools. Read-only profiles always refuse write and shell tools.';
+      'Empty = all permitted child tools. Read-only profiles always block write, shell, and memory-write tools.';
 
   @override
   String get subagentProfileReadOnly => 'Read-only';
 
   @override
   String get subagentProfileReadOnlySubtitle =>
-      'Refuse write and shell tools even if they are advertised.';
+      'Always blocks write, shell, and memory-write tools.';
 
   @override
   String get subagentProfileModel => 'Model';
@@ -7415,7 +7448,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subagentProfileProviderMissing =>
-      'The selected provider no longer exists. Choose another one or follow the conversation.';
+      'The selected provider is no longer available (deleted or disabled). Choose another one or follow the conversation.';
+
+  @override
+  String get subagentProfileNoEnabledModels =>
+      'No enabled models for this provider. Add or enable a model in Providers first.';
+
+  @override
+  String get subagentProfileModelUnavailable =>
+      'This model is no longer enabled. Pick another model.';
 
   @override
   String get subagentProfileMaxStepsRange =>
@@ -7439,4 +7480,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String subagentProfileToolsCount(String count) {
     return '$count tools';
   }
+
+  @override
+  String get addonsSubagentEnable => 'Enable subagents';
+
+  @override
+  String addonsSubagentProfileCount(String count) {
+    return '$count profiles';
+  }
+
+  @override
+  String get addonsSubagentPickHint => 'Pick a profile to insert an @mention.';
 }

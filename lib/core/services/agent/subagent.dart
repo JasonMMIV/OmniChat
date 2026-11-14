@@ -46,6 +46,11 @@ import 'subagent_request.dart';
 /// Tool name advertised to the parent model.
 const String spawnSubagentToolName = 'spawn_subagent';
 
+/// UI-only tool name for a user-initiated `@profile` delegation. It is never
+/// advertised to a model; the card/persistence path uses it to distinguish a
+/// direct delegation from a model-chosen `spawn_subagent` call.
+const String delegateSubagentToolName = 'delegate_subagent';
+
 /// Tools a subagent must never receive.
 ///
 /// - `spawn_subagent`: no recursion (unbounded fan-out + budget escapes).
@@ -386,6 +391,37 @@ enum SubagentSummarySource {
   };
 }
 
+/// Shared JSON shape for the live (while running) and final helper trace.
+/// Keeping one builder prevents the live card and the persisted card from
+/// drifting on the 40-row cap or field names.
+Map<String, dynamic> buildSubagentTraceJson({
+  required String status,
+  required List<SubagentTraceStep> trace,
+  String? profileId,
+  int? steps,
+  int? toolCalls,
+  int? tokens,
+  String? summarySource,
+  String? sessionId,
+  String? running,
+}) {
+  const maxRows = 40;
+  return <String, dynamic>{
+    'status': status,
+    if (profileId != null && profileId.isNotEmpty) 'profile': profileId,
+    if (steps != null) 'steps': steps,
+    if (toolCalls != null) 'toolCalls': toolCalls,
+    if (tokens != null) 'tokens': tokens,
+    if (summarySource != null) 'summarySource': summarySource,
+    if (sessionId != null && sessionId.isNotEmpty) 'sessionId': sessionId,
+    'items': <Map<String, dynamic>>[
+      for (final step in trace.take(maxRows)) step.toJson(),
+    ],
+    if (trace.length > maxRows) 'more': trace.length - maxRows,
+    if (running != null && running.isNotEmpty) 'running': running,
+  };
+}
+
 /// One executed child tool, for the UI-only helper trace (A6: no arguments).
 class SubagentTraceStep {
   const SubagentTraceStep({
@@ -602,20 +638,16 @@ class SubagentOutcome {
   /// Compact UI-only trace written to the tool event extras (P1-2).
   /// Capped at 40 rows; a trailing marker carries the omitted count.
   Map<String, dynamic> toTraceJson() {
-    const maxRows = 40;
-    final items = <Map<String, dynamic>>[
-      for (final step in trace.take(maxRows)) step.toJson(),
-    ];
-    return <String, dynamic>{
-      'status': status,
-      if (profileId != null && profileId!.isNotEmpty) 'profile': profileId,
-      'steps': steps,
-      'toolCalls': toolCallCount,
-      'tokens': tokensUsed,
-      'summarySource': summarySource.wireName,
-      'items': items,
-      if (trace.length > maxRows) 'more': trace.length - maxRows,
-    };
+    return buildSubagentTraceJson(
+      status: status,
+      profileId: profileId,
+      steps: steps,
+      toolCalls: toolCallCount,
+      tokens: tokensUsed,
+      summarySource: summarySource.wireName,
+      sessionId: sessionId,
+      trace: trace,
+    );
   }
 
   String? _noteFor() {
@@ -754,6 +786,8 @@ class SubagentRunner {
     this.onAbortRequest,
     this.decorateRequest,
     this.onZombie,
+    this.onToolStart,
+    this.onToolEnd,
     SerialGate? gate,
   }) : gate = gate ?? SerialGate.shared;
 
@@ -790,6 +824,13 @@ class SubagentRunner {
   /// tool still running (the gate is released anyway to avoid a global
   /// deadlock). Production wiring logs the `subagent_zombie` line.
   final void Function(int inFlight)? onZombie;
+
+  /// UI progress hooks for the parent `spawn_subagent` card. [onToolStart]
+  /// fires before the child tool executes; [onToolEnd] carries the completed
+  /// trace step. Both are best-effort: a listener failure must never abort
+  /// the helper run.
+  final void Function(String tool)? onToolStart;
+  final void Function(SubagentTraceStep step)? onToolEnd;
 
   final SerialGate gate;
 
@@ -1034,19 +1075,28 @@ class SubagentRunner {
       final watch = Stopwatch()..start();
       var resultChars = 0;
       try {
+        try {
+          onToolStart?.call(call.name);
+        } catch (_) {
+          // UI progress is best-effort; never fail the tool because of it.
+        }
         final result = await onToolCall(call);
         resultChars = result.length;
         return result;
       } finally {
         watch.stop();
         toolCallCount++;
-        trace.add(
-          SubagentTraceStep(
-            tool: call.name,
-            durationMs: watch.elapsedMilliseconds,
-            resultChars: resultChars,
-          ),
+        final step = SubagentTraceStep(
+          tool: call.name,
+          durationMs: watch.elapsedMilliseconds,
+          resultChars: resultChars,
         );
+        trace.add(step);
+        try {
+          onToolEnd?.call(step);
+        } catch (_) {
+          // UI progress is best-effort; never fail the tool because of it.
+        }
         inFlightTools--;
         if (inFlightTools == 0 && !idle.isCompleted) idle.complete();
       }

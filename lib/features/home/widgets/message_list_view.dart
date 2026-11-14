@@ -105,6 +105,7 @@ class MessageListView extends StatelessWidget {
     this.buildPinnedStreamingIndicator,
     this.onSubmitAskUserAnswer,
     this.onResolveApproval,
+    this.onContinueSubagent,
   });
 
   final ScrollController scrollController;
@@ -174,6 +175,10 @@ class MessageListView extends StatelessWidget {
     required bool approve,
   })?
   onResolveApproval;
+
+  /// Direct `@profile` result card: Continue pre-fills the composer and keeps
+  /// the helper session id for the next send.
+  final void Function(String profileId, String sessionId)? onContinueSubagent;
 
   /// Collapse message versions to show only selected version per group.
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
@@ -761,6 +766,7 @@ class MessageListView extends StatelessWidget {
           : null,
       onSubmitAskUserAnswer: onSubmitAskUserAnswer,
       onResolveApproval: onResolveApproval,
+      onContinueSubagent: onContinueSubagent,
       onToggleProcessGroup: message.role == 'assistant'
           ? (open, forcedOpen) =>
                 onToggleProcessGroup?.call(message.id, open, forcedOpen)

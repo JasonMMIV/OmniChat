@@ -13452,6 +13452,12 @@ abstract class AppLocalizations {
   /// **'Slash commands can only be queued'**
   String get composerSendNowCommandHint;
 
+  /// No description provided for @composerSendNowDelegationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagent mentions can only be queued'**
+  String get composerSendNowDelegationHint;
+
   /// No description provided for @composerSendNowTeamHint.
   ///
   /// In en, this message translates to:
@@ -13518,12 +13524,6 @@ abstract class AppLocalizations {
   /// **'Queued message failed to send; moved back to the front'**
   String get queueDockSendFailed;
 
-  /// No description provided for @subagentTraceStep.
-  ///
-  /// In en, this message translates to:
-  /// **'{tool} · {ms} ms · {chars} chars'**
-  String subagentTraceStep(String tool, String ms, String chars);
-
   /// No description provided for @subagentTraceMore.
   ///
   /// In en, this message translates to:
@@ -13559,6 +13559,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No tool calls recorded.'**
   String get subagentTraceEmpty;
+
+  /// No description provided for @subagentTraceRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running…'**
+  String get subagentTraceRunning;
+
+  /// No description provided for @subagentTraceStepMeta.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms · {chars} chars'**
+  String subagentTraceStepMeta(String ms, String chars);
+
+  /// No description provided for @subagentTraceRunningTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Running {tool}…'**
+  String subagentTraceRunningTool(String tool);
+
+  /// No description provided for @subagentDelegatedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Delegated to {name}'**
+  String subagentDelegatedTo(String name);
+
+  /// No description provided for @subagentDelegatedContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get subagentDelegatedContinue;
+
+  /// No description provided for @subagentDelegatedContinueHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a follow-up in this session'**
+  String get subagentDelegatedContinueHint;
+
+  /// No description provided for @subagentDelegatedFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The subagent could not complete this task.'**
+  String get subagentDelegatedFailed;
+
+  /// No description provided for @subagentDelegatedEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The subagent returned no result.'**
+  String get subagentDelegatedEmpty;
+
+  /// No description provided for @toolNameDelegateSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Delegated subagent'**
+  String get toolNameDelegateSubagent;
 
   /// Settings page listing named subagent profiles.
   ///
@@ -13623,7 +13677,7 @@ abstract class AppLocalizations {
   /// No description provided for @subagentProfileAllowedToolsHint.
   ///
   /// In en, this message translates to:
-  /// **'Empty = all child tools. Read-only profiles always refuse write and shell tools.'**
+  /// **'Empty = all permitted child tools. Read-only profiles always block write, shell, and memory-write tools.'**
   String get subagentProfileAllowedToolsHint;
 
   /// No description provided for @subagentProfileReadOnly.
@@ -13635,7 +13689,7 @@ abstract class AppLocalizations {
   /// No description provided for @subagentProfileReadOnlySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Refuse write and shell tools even if they are advertised.'**
+  /// **'Always blocks write, shell, and memory-write tools.'**
   String get subagentProfileReadOnlySubtitle;
 
   /// No description provided for @subagentProfileModel.
@@ -13761,8 +13815,20 @@ abstract class AppLocalizations {
   /// No description provided for @subagentProfileProviderMissing.
   ///
   /// In en, this message translates to:
-  /// **'The selected provider no longer exists. Choose another one or follow the conversation.'**
+  /// **'The selected provider is no longer available (deleted or disabled). Choose another one or follow the conversation.'**
   String get subagentProfileProviderMissing;
+
+  /// No description provided for @subagentProfileNoEnabledModels.
+  ///
+  /// In en, this message translates to:
+  /// **'No enabled models for this provider. Add or enable a model in Providers first.'**
+  String get subagentProfileNoEnabledModels;
+
+  /// No description provided for @subagentProfileModelUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This model is no longer enabled. Pick another model.'**
+  String get subagentProfileModelUnavailable;
 
   /// No description provided for @subagentProfileMaxStepsRange.
   ///
@@ -13799,6 +13865,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} tools'**
   String subagentProfileToolsCount(String count);
+
+  /// No description provided for @addonsSubagentEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable subagents'**
+  String get addonsSubagentEnable;
+
+  /// No description provided for @addonsSubagentProfileCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} profiles'**
+  String addonsSubagentProfileCount(String count);
+
+  /// No description provided for @addonsSubagentPickHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a profile to insert an @mention.'**
+  String get addonsSubagentPickHint;
 }
 
 class _AppLocalizationsDelegate

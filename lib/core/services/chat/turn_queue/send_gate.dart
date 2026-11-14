@@ -28,9 +28,10 @@ bool canQueueChatInput({
 
 /// Whether [text] may be injected into the running turn (Send now).
 ///
-/// Steering is pure-text only: attachments and `/`-prefixed commands must go
-/// through the queue so their full context is rebaked by the normal send
-/// pipeline instead of being silently dropped mid-turn.
+/// Steering is pure-text only: attachments, `/`-prefixed commands and
+/// `@profile` delegations must go through the queue so their full context is
+/// rebaked by the normal send pipeline instead of being silently dropped
+/// mid-turn.
 bool canSteerChatInput({
   required bool loading,
   required String text,
@@ -41,7 +42,7 @@ bool canSteerChatInput({
   final trimmed = text.trim();
   if (trimmed.isEmpty) return false;
   if (imageCount > 0 || documentCount > 0) return false;
-  return !trimmed.startsWith('/');
+  return !trimmed.startsWith('/') && !trimmed.startsWith('@');
 }
 
 /// Why Send now is unavailable; drives the disabled state + tooltip.
@@ -54,6 +55,9 @@ enum SendNowBlockReason {
 
   /// The composer text starts with `/` (slash command / skill token).
   command,
+
+  /// The composer text starts with `@profile` (direct subagent delegation).
+  delegation,
 
   /// An AI Team run (proposer or aggregator) is active.
   team,
@@ -81,6 +85,6 @@ SendNowBlockReason sendNowBlockReason({
   if (trimmed.isEmpty) return SendNowBlockReason.inactive;
   if (teamActive) return SendNowBlockReason.team;
   if (trimmed.startsWith('/')) return SendNowBlockReason.command;
+  if (trimmed.startsWith('@')) return SendNowBlockReason.delegation;
   return SendNowBlockReason.none;
 }
-

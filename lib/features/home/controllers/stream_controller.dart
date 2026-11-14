@@ -219,6 +219,32 @@ class StreamController {
     _toolParts[messageId] = parts;
   }
 
+  /// Merge UI-only extras into a live tool card. Used by the subagent runner
+  /// to show child tool progress on the parent's `spawn_subagent` card while
+  /// the helper is still working. No-op when the card is not in memory yet;
+  /// the final tool-result chunk still carries the persisted extras.
+  void updateToolPartExtras(
+    String messageId,
+    String toolCallId, {
+    Map<String, dynamic>? subagentTrace,
+  }) {
+    final id = toolCallId.trim();
+    if (id.isEmpty) return;
+    final current = _toolParts[messageId];
+    if (current == null || current.isEmpty) return;
+    final parts = List<ToolUIPart>.of(current);
+    var found = false;
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].id != id) continue;
+      parts[i] = parts[i].copyWith(subagentTrace: subagentTrace);
+      found = true;
+      break;
+    }
+    if (!found) return;
+    _toolParts[messageId] = dedupeToolPartsList(parts);
+    streamingContentNotifier.notifyToolPartsUpdated(messageId);
+  }
+
   /// Appends an already-finished tool part (no stream round involved) and
   /// notifies the tool-card listeners. Used by the Phase 3 user-initiated
   /// plan clear, which records a completed `write_todos(todos: [])` event.
@@ -411,14 +437,14 @@ class StreamController {
     List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   ) {
     if (getToolEventsFromDb == null) return const <String, dynamic>{};
-          // search_web, spawn_subagent and the file tools carry UI-only extras —
-      // short-circuit so the tool-event box is never read for unrelated tools
-      // (avoids extra reads per result in long agent runs).
-      if (name != 'search_web' &&
-          name != spawnSubagentToolName &&
-          !name.startsWith('file_')) {
-        return const <String, dynamic>{};
-      }
+    // search_web, spawn_subagent and the file tools carry UI-only extras —
+    // short-circuit so the tool-event box is never read for unrelated tools
+    // (avoids extra reads per result in long agent runs).
+    if (name != 'search_web' &&
+        name != spawnSubagentToolName &&
+        !name.startsWith('file_')) {
+      return const <String, dynamic>{};
+    }
     try {
       final events = getToolEventsFromDb(messageId);
       Map<String, dynamic> extrasOf(Map<String, dynamic> e) => {
@@ -1780,8 +1806,7 @@ Map<String, dynamic>? _toolImageSendMap(Object? value) {
 }
 
 /// P1-2: helper trace extras (`items` is a list of `{t, ms, chars}`).
-Map<String, dynamic>? _toolTraceMap(Object? value) =>
-    _toolImageSendMap(value);
+Map<String, dynamic>? _toolTraceMap(Object? value) => _toolImageSendMap(value);
 
 class _Position {
   _Position(this.index);

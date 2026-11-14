@@ -12,6 +12,7 @@ Future<void> showAddonsPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
   required String? assistantId,
+  ValueChanged<String>? onDelegateProfile,
 }) async {
   final overlay = Overlay.maybeOf(context);
   if (overlay == null) return;
@@ -35,6 +36,7 @@ Future<void> showAddonsPopover(
       anchorRect: anchorRect,
       anchorWidth: size.width,
       assistantId: assistantId,
+      onDelegateProfile: onDelegateProfile,
       onClose: () {
         try {
           entry.remove();
@@ -51,11 +53,13 @@ class _AddonsPopover extends StatefulWidget {
     required this.anchorWidth,
     required this.assistantId,
     required this.onClose,
+    this.onDelegateProfile,
   });
 
   final Rect anchorRect;
   final double anchorWidth;
   final String? assistantId;
+  final ValueChanged<String>? onDelegateProfile;
   final VoidCallback onClose;
 
   @override
@@ -107,8 +111,11 @@ class _AddonsPopoverState extends State<_AddonsPopover>
     final screen = MediaQuery.of(context).size;
     // Same width formula as the old MCP popover (2026-11-10 feedback).
     final width = (widget.anchorWidth - 16).clamp(260.0, 720.0);
-    final left = (widget.anchorRect.left + (widget.anchorRect.width - width) / 2)
-        .clamp(8.0, screen.width - width - 8.0);
+    final left =
+        (widget.anchorRect.left + (widget.anchorRect.width - width) / 2).clamp(
+          8.0,
+          screen.width - width - 8.0,
+        );
     final clipHeight = widget.anchorRect.top.clamp(0.0, screen.height);
 
     return Stack(
@@ -141,6 +148,7 @@ class _AddonsPopoverState extends State<_AddonsPopover>
                         child: _AddonsPopoverContent(
                           assistantId: widget.assistantId,
                           onClose: _close,
+                          onDelegateProfile: widget.onDelegateProfile,
                         ),
                       ),
                     ),
@@ -173,8 +181,9 @@ class _Panel extends StatelessWidget {
         filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: (isDark ? Colors.black : Colors.white)
-                .withOpacity(isDark ? 0.28 : 0.56),
+            color: (isDark ? Colors.black : Colors.white).withOpacity(
+              isDark ? 0.28 : 0.56,
+            ),
             border: Border(
               top: BorderSide(
                 color: Colors.white.withOpacity(isDark ? 0.06 : 0.18),
@@ -201,10 +210,12 @@ class _AddonsPopoverContent extends StatelessWidget {
   const _AddonsPopoverContent({
     required this.assistantId,
     required this.onClose,
+    this.onDelegateProfile,
   });
 
   final String? assistantId;
   final Future<void> Function() onClose;
+  final ValueChanged<String>? onDelegateProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +240,7 @@ class _AddonsPopoverContent extends StatelessWidget {
               // Await the 260 ms reverse animation so the overlay entry is
               // gone before the Self-Review dialog opens.
               onRequestClose: onClose,
+              onDelegateProfile: onDelegateProfile,
             ),
           ],
         ),

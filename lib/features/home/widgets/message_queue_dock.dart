@@ -246,6 +246,7 @@ class _QueueDockItemRowState extends State<_QueueDockItemRow> {
     final sendNowTooltip = switch (reason) {
       SendNowBlockReason.attachments => l10n.composerSendNowAttachmentsHint,
       SendNowBlockReason.command => l10n.composerSendNowCommandHint,
+      SendNowBlockReason.delegation => l10n.composerSendNowDelegationHint,
       SendNowBlockReason.team => l10n.composerSendNowTeamHint,
       SendNowBlockReason.inactive => l10n.queueDockSendNowIdle,
       SendNowBlockReason.none => l10n.queueDockSendNow,

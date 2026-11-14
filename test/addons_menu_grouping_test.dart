@@ -6,6 +6,7 @@ import 'package:OmniChat/core/models/answer_review.dart';
 import 'package:OmniChat/core/providers/assistant_provider.dart';
 import 'package:OmniChat/core/providers/mcp_provider.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
+import 'package:OmniChat/core/services/agent/subagent_profiles.dart';
 import 'package:OmniChat/features/home/widgets/addons_menu.dart';
 import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
@@ -20,6 +21,9 @@ class _FakeSettingsProvider extends ChangeNotifier implements SettingsProvider {
 
   @override
   bool isWorkspaceToolEnabled(String toolName) => true;
+
+  @override
+  List<SubagentProfile> get subagentProfiles => SubagentProfiles.builtIns;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -94,7 +98,22 @@ void main() {
 
     expect(find.text('Write Todos'), findsOneWidget);
     expect(find.text('Ask User'), findsOneWidget);
-    expect(find.byIcon(Lucide.UserRoundCheck), findsOneWidget);
+    expect(find.byIcon(Lucide.Bot), findsOneWidget);
+  });
+
+  testWidgets('the subagent row expands into a switch and profile list', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsProvider();
+    addTearDown(settings.dispose);
+    await _pumpMenu(tester, settings);
+
+    await tester.tap(find.text('Subagents'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enable subagents'), findsOneWidget);
+    expect(find.text('Explore'), findsOneWidget);
+    expect(find.text('General'), findsOneWidget);
   });
 
   testWidgets('collapsed summaries keep the x/2 counts and review mode', (

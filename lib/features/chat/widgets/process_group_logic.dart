@@ -68,11 +68,16 @@ class ProcessTool {
   /// group open (B1).
   final bool requiresUserAction;
 
+  /// Keep the group open after the run finishes. Used by user-initiated
+  /// delegation cards, whose Continue action must stay visible.
+  final bool keepOpen;
+
   const ProcessTool({
     required this.index,
     required this.toolName,
     this.loading = false,
     this.requiresUserAction = false,
+    this.keepOpen = false,
   });
 }
 
@@ -117,6 +122,10 @@ class ProcessGroupModel {
   /// must stay open and the header stays live regardless of the user's pin.
   final bool forcedOpen;
 
+  /// The group contains a user-initiated delegation result; open it by
+  /// default so the card + Continue action are not folded away.
+  final bool keepOpen;
+
   /// B3: false → nothing survived the filters; render no group at all
   /// (never an empty collapsible shell).
   final bool visible;
@@ -126,6 +135,7 @@ class ProcessGroupModel {
     required this.live,
     required this.forcedOpen,
     required this.visible,
+    this.keepOpen = false,
   });
 }
 
@@ -155,7 +165,7 @@ ProcessGroupModel buildProcessGroup({
     // B1: interactive cards (approval pending / unanswered ask_user) are
     // control surfaces, not process display — they bypass showToolCards so
     // the resume pipeline can never be folded away.
-    if (!showToolCards && !tool.requiresUserAction) return;
+    if (!showToolCards && !tool.requiresUserAction && !tool.keepOpen) return;
     entries.add(ToolEntry(tool: tool));
   }
 
@@ -190,6 +200,7 @@ ProcessGroupModel buildProcessGroup({
   }
 
   final bool forcedOpen = tools.any((t) => t.requiresUserAction);
+  final bool keepOpen = tools.any((t) => t.keepOpen);
   final bool live =
       forcedOpen ||
       answerReviewLive ||
@@ -203,6 +214,7 @@ ProcessGroupModel buildProcessGroup({
     live: live,
     forcedOpen: forcedOpen,
     visible: entries.isNotEmpty || hasAnswerReview,
+    keepOpen: keepOpen,
   );
 }
 
@@ -224,9 +236,11 @@ bool resolveProcessOpen({
   required bool forcedOpen,
   required bool live,
   required bool autoCollapse,
+  bool keepOpen = false,
 }) {
   if (forcedOpen) return true;
   if (explicitOpen != null) return explicitOpen;
+  if (keepOpen) return true;
   return live || !autoCollapse;
 }
 
