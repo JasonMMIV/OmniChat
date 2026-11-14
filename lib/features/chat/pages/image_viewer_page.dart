@@ -142,15 +142,29 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
     return (s >= 0.98 && s <= 1.02);
   }
 
-  void _handleVerticalDragStart(DragStartDetails d) {
-    _dragActive = _canDragDismiss();
-    if (!_dragActive) return;
+  // Drag-to-dismiss rides on the InteractiveViewer's scale gesture instead of
+  // a sibling vertical-drag recognizer. A separate vertical drag accepts at
+  // half the scale recognizer's pan slop, so it can claim the first pointer
+  // before the second finger lands; the scale recognizer then never sees that
+  // pointer and pinch-to-zoom silently does nothing.
+  void _handleViewerInteractionStart(ScaleStartDetails d) {
     _restoreCtrl.stop();
+    _dragActive = d.pointerCount == 1 && _canDragDismiss();
   }
 
-  void _handleVerticalDragUpdate(DragUpdateDetails d) {
+  void _handleViewerInteractionUpdate(ScaleUpdateDetails d) {
     if (!_dragActive) return;
-    final dy = d.delta.dy;
+    if (d.pointerCount > 1) {
+      // A pinch began: hand the gesture to InteractiveViewer and drop the
+      // pending dismissal so the page does not stay offset.
+      setState(() {
+        _dragActive = false;
+        _dragDy = 0.0;
+        _bgOpacity = 1.0;
+      });
+      return;
+    }
+    final dy = d.focalPointDelta.dy;
     if (dy <= 0 && _dragDy <= 0) return; // only handle downward
     setState(() {
       _dragDy = math.max(0.0, _dragDy + dy);
@@ -158,10 +172,10 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
     });
   }
 
-  void _handleVerticalDragEnd(DragEndDetails d) {
+  void _handleViewerInteractionEnd(ScaleEndDetails d) {
     if (!_dragActive) return;
     _dragActive = false;
-    final v = d.primaryVelocity ?? 0.0; // positive when swiping down
+    final v = d.velocity.pixelsPerSecond.dy; // positive when swiping down
     const double dismissDistance = 140.0;
     const double dismissVelocity = 900.0;
     if (_dragDy > dismissDistance || v > dismissVelocity) {
@@ -585,12 +599,10 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
             Positioned.fill(
               child: Container(color: Colors.black.withOpacity(_bgOpacity)),
             ),
-            // Drag-to-dismiss gesture layered over the PageView
+            // Tap-to-dismiss layer; vertical drags are handled by the image's
+            // InteractiveViewer so pinch gestures keep every pointer.
             GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onVerticalDragStart: _handleVerticalDragStart,
-              onVerticalDragUpdate: _handleVerticalDragUpdate,
-              onVerticalDragEnd: _handleVerticalDragEnd,
               onTap: () => Navigator.of(context).maybePop(),
               child: PageView.builder(
                 controller: _controller,
@@ -659,6 +671,9 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
                                     scaleEnabled: true,
                                     clipBehavior: Clip.none,
                                     boundaryMargin: canPan ? const EdgeInsets.all(80) : EdgeInsets.zero,
+                                    onInteractionStart: _handleViewerInteractionStart,
+                                    onInteractionUpdate: _handleViewerInteractionUpdate,
+                                    onInteractionEnd: _handleViewerInteractionEnd,
                                     child: img,
                                   );
                                 },
