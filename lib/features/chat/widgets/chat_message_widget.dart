@@ -3673,7 +3673,11 @@ class DelegatedSubagentCard extends StatelessWidget {
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                       )
-                    : Icon(Lucide.Bot, size: 18, color: cs.primary),
+                    : Icon(
+                        Lucide.UsersRoundCollaboration,
+                        size: 18,
+                        color: cs.primary,
+                      ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -3712,7 +3716,11 @@ class DelegatedSubagentCard extends StatelessWidget {
                   message: l10n.subagentDelegatedContinueHint,
                   child: TextButton.icon(
                     onPressed: () => onContinueSubagent!(profileId, sessionId),
-                    icon: Icon(Lucide.Play, size: 14, color: cs.primary),
+                    icon: Icon(
+                      Lucide.CornerDownRight,
+                      size: 14,
+                      color: cs.primary,
+                    ),
                     label: Text(
                       l10n.subagentDelegatedContinue,
                       style: TextStyle(fontSize: 12, color: cs.primary),

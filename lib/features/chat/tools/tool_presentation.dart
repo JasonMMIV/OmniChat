@@ -87,7 +87,7 @@ IconData toolIcon(String rawName) {
       return Lucide.Search;
     case 'spawn_subagent':
     case 'delegate_subagent':
-      return Lucide.Bot;
+      return Lucide.UserRoundGroup;
     case 'skill':
       return Lucide.WandSparkles;
     case 'illustrate':

@@ -98,7 +98,8 @@ void main() {
 
     expect(find.text('Write Todos'), findsOneWidget);
     expect(find.text('Ask User'), findsOneWidget);
-    expect(find.byIcon(Lucide.Bot), findsOneWidget);
+    expect(find.byIcon(Lucide.UserRoundGroup), findsOneWidget);
+    expect(find.byIcon(Lucide.Bot), findsNothing);
   });
 
   testWidgets('the subagent row expands into a switch and profile list', (
@@ -114,6 +115,10 @@ void main() {
     expect(find.text('Enable subagents'), findsOneWidget);
     expect(find.text('Explore'), findsOneWidget);
     expect(find.text('General'), findsOneWidget);
+    expect(find.byIcon(Lucide.toggleRight), findsOneWidget);
+    expect(find.byIcon(Lucide.Bot), findsNothing);
+    expect(find.byIcon(Lucide.UserRoundCheck), findsOneWidget);
+    expect(find.byIcon(Lucide.UserRoundSearch), findsOneWidget);
   });
 
   testWidgets('collapsed summaries keep the x/2 counts and review mode', (

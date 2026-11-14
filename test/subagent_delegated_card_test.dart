@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/core/services/agent/subagent_profiles.dart';
 import 'package:OmniChat/features/chat/widgets/chat_message_widget.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 
 class _FakeSettings extends ChangeNotifier implements SettingsProvider {
@@ -61,6 +62,9 @@ void main() {
 
     expect(find.text('Delegated to Explore'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
+    expect(find.byIcon(Lucide.UsersRoundCollaboration), findsOneWidget);
+    expect(find.byIcon(Lucide.CornerDownRight), findsOneWidget);
+    expect(find.byIcon(Lucide.Bot), findsNothing);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();

@@ -6,6 +6,7 @@ import '../../../core/services/agent/subagent_profiles.dart';
 import '../../../core/services/file/file_tool_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/subagent_profile_icon.dart';
 
 /// P1-1 (A1): the subagent profile registry editor.
 ///
@@ -104,8 +105,8 @@ class _ProfileRow extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
-        leading: Icon(
-          profile.readOnly ? Lucide.Eye : Lucide.UserRoundCheck,
+        leading: SubagentProfileIcon(
+          profile: profile,
           size: 20,
           color: cs.primary,
         ),
@@ -402,7 +403,7 @@ class _SubagentProfileEditorPageState
             if (!_isNew)
               TextButton.icon(
                 onPressed: _duplicate,
-                icon: const Icon(Lucide.Copy, size: 16),
+                icon: const Icon(Lucide.CopyPlus, size: 16),
                 label: Text(l10n.subagentProfileDuplicate),
               ),
             if (_base.builtIn)

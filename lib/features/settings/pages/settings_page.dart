@@ -336,7 +336,7 @@ class SettingsPage extends StatelessWidget {
               _iosDivider(context),
               _iosNavRow(
                 context,
-                icon: Lucide.Bot,
+                icon: Lucide.UserRoundGroup,
                 label: l10n.subagentProfilesTitle,
                 onTap: () {
                   Navigator.of(context).push(

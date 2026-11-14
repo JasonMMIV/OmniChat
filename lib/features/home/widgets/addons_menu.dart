@@ -15,6 +15,7 @@ import '../../../core/services/chat/todo_models.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/subagent_profile_icon.dart';
 
 /// Mobile entry: the Add-ons bottom sheet behind the composer button
 /// (desktop uses `showAddonsPopover` instead — no bottom sheets there).
@@ -249,9 +250,9 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
           children: [
             _MenuRow(
               leading: Icon(
-                subagentOn ? Lucide.Bot : Lucide.UserRoundCheck,
+                Lucide.UserRoundGroup,
                 size: 16,
-                color: subagentOn ? cs.primary : cs.onSurface,
+                color: subagentOn ? cs.primary : cs.onSurface.withOpacity(0.45),
               ),
               title: l10n.builtInToolSubagentName,
               subtitle: l10n.addonsSubagentSubtitle,
@@ -283,7 +284,7 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
             if (_subagentExpanded) ...[
               _MenuRow(
                 leading: Icon(
-                  Lucide.Play,
+                  Lucide.toggleRight,
                   size: 16,
                   color: subagentOn ? cs.primary : cs.onSurface,
                 ),
@@ -300,8 +301,8 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
               if (!subagentOn) _hintRow(l10n.addonsSubagentPickHint),
               for (final profile in subagentProfiles)
                 _MenuRow(
-                  leading: Icon(
-                    profile.readOnly ? Lucide.Eye : Lucide.Bot,
+                  leading: SubagentProfileIcon(
+                    profile: profile,
                     size: 16,
                     color: cs.onSurface,
                   ),

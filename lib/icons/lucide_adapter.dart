@@ -9,7 +9,8 @@ class Lucide {
   /// Queue (turn queue plan §3.3): [Queue] composer button.
   static const IconData ListPlus = lucide.LucideIcons.listPlus;
   static const IconData Menu = lucide.LucideIcons.menu;
-  static const IconData MessageCirclePlus = lucide.LucideIcons.messageCirclePlus;
+  static const IconData MessageCirclePlus =
+      lucide.LucideIcons.messageCirclePlus;
   static const IconData Box = lucide.LucideIcons.box;
   static const IconData Globe = lucide.LucideIcons.earth;
   static const IconData Earth = lucide.LucideIcons.earth;
@@ -50,7 +51,8 @@ class Lucide {
   static const IconData Share2 = lucide.LucideIcons.share2;
   static const IconData Share = lucide.LucideIcons.share;
   static const IconData Bookmark = lucide.LucideIcons.bookmark;
-  static const IconData MessageCircleWarning = lucide.LucideIcons.messageCircleWarning;
+  static const IconData MessageCircleWarning =
+      lucide.LucideIcons.messageCircleWarning;
   static const IconData ChevronDown = lucide.LucideIcons.chevronDown;
   static const IconData Import = lucide.LucideIcons.import;
   static const IconData GripHorizontal = lucide.LucideIcons.gripHorizontal;
@@ -64,12 +66,18 @@ class Lucide {
   static const IconData Type = lucide.LucideIcons.type;
   static const IconData ChevronRight = lucide.LucideIcons.chevronRight;
   static const IconData Copy = lucide.LucideIcons.copy;
+  static const IconData CopyPlus = lucide.LucideIcons.copyPlus;
   static const IconData RefreshCw = lucide.LucideIcons.refreshCw;
   static const IconData Ellipsis = lucide.LucideIcons.ellipsis;
   static const IconData MoreVertical = lucide.LucideIcons.ellipsis;
   static const IconData Languages = lucide.LucideIcons.languages;
   static const IconData User = lucide.LucideIcons.user;
   static const IconData UserRoundCheck = lucide.LucideIcons.userRoundCheck;
+  static const IconData UserRoundGroup = lucide.LucideIcons.userRoundGroup;
+  static const IconData UserRoundSearch = lucide.LucideIcons.userRoundSearch;
+  static const IconData UsersRoundCollaboration =
+      lucide.LucideIcons.usersRoundCollaboration;
+  static const IconData ContactRound = lucide.LucideIcons.contactRound;
   static const IconData Users = lucide.LucideIcons.users;
   static const IconData Hammer = lucide.LucideIcons.hammer;
   static const IconData Brain = lucide.LucideIcons.brain;
@@ -103,9 +111,11 @@ class Lucide {
   static const IconData CircleX = lucide.LucideIcons.circleX;
   static const IconData Link2 = lucide.LucideIcons.link2;
   static const IconData Shield = lucide.LucideIcons.shield;
+  static const IconData Lock = lucide.LucideIcons.lock;
   static const IconData Compass = lucide.LucideIcons.compass;
   static const IconData ArrowDown = lucide.LucideIcons.arrowDown;
   static const IconData ArrowRight = lucide.LucideIcons.arrowRight;
+  static const IconData CornerDownRight = lucide.LucideIcons.cornerDownRight;
   static const IconData Edit2 = lucide.LucideIcons.squarePen;
   static const IconData BookOpen = lucide.LucideIcons.bookOpen;
   static const IconData Activity = lucide.LucideIcons.activity;
@@ -131,7 +141,8 @@ class Lucide {
   static const IconData HeartPulse = lucide.LucideIcons.heartPulse;
   static const IconData Sun = lucide.LucideIcons.sun;
   static const IconData Moon = lucide.LucideIcons.moon;
-  static const IconData MessageCircleMore = lucide.LucideIcons.messageCircleMore;
+  static const IconData MessageCircleMore =
+      lucide.LucideIcons.messageCircleMore;
   static const IconData CaseSensitive = lucide.LucideIcons.caseSensitive;
   static const IconData TextInitial = lucide.LucideIcons.textInitial;
   static const IconData eclipse = lucide.LucideIcons.eclipse;

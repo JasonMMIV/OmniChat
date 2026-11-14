@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:OmniChat/core/providers/settings_provider.dart';
 import 'package:OmniChat/features/settings/pages/settings_page.dart';
+import 'package:OmniChat/icons/lucide_adapter.dart';
 import 'package:OmniChat/l10n/app_localizations.dart';
 
 Future<SettingsProvider> _loadedProvider() async {
@@ -54,6 +55,8 @@ void main() {
     final aiTeam = find.text(l10n.settingsPageAiTeam);
     expect(profiles, findsOneWidget);
     expect(aiTeam, findsOneWidget);
+    expect(find.byIcon(Lucide.UserRoundGroup), findsOneWidget);
+    expect(find.byIcon(Lucide.Bot), findsNothing);
     expect(
       tester.getTopLeft(profiles).dy,
       lessThan(tester.getTopLeft(aiTeam).dy),

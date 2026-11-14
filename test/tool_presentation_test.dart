@@ -91,6 +91,11 @@ void main() {
       expect(toolIcon('browser_take_screenshot'), Lucide.Wrench);
     });
 
+    test('subagent tools use the group identity', () {
+      expect(toolIcon('spawn_subagent'), Lucide.UserRoundGroup);
+      expect(toolIcon('delegate_subagent'), Lucide.UserRoundGroup);
+    });
+
     test('legacy aliases resolve to the canonical tool', () {
       expect(toolDisplayName(en, 'fetch_html'), en.toolNameWebFetch);
       expect(toolDisplayName(en, 'read_page'), en.toolNameWebFetch);
