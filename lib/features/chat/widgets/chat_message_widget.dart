@@ -45,6 +45,7 @@ import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/chat/storage/message_part_codec.dart';
 import '../../../core/services/chat/todo_models.dart';
 import '../../../core/services/agent/approval.dart';
+import '../../../core/services/agent/subagent.dart';
 import '../../../core/services/workspace/workspace_resolver.dart';
 import '../../../core/providers/assistant_provider.dart';
 
@@ -3325,6 +3326,10 @@ class ToolUIPart {
   /// UI-only; restored from persistent extras so the badge survives restart.
   final Map<String, dynamic>? imageSend;
 
+  /// P1-2: helper trace for `spawn_subagent` (status/profile/steps/tokens +
+  /// per-tool items). UI-only; never replayed to a model.
+  final Map<String, dynamic>? subagentTrace;
+
   /// P1-1 (2026-11-10): the decision was accepted and the tool is executing.
   /// UI-only; never persisted. The approval card hides its buttons and shows
   /// progress while this is true, so a long shell command cannot invite a
@@ -3349,6 +3354,7 @@ class ToolUIPart {
     this.diffText,
     this.imagePath,
     this.imageSend,
+    this.subagentTrace,
     this.approvalExecuting = false,
   }) : contentLoaded = contentLoaded ?? (content != null),
        contentLength = contentLength ?? (content?.length ?? 0);
@@ -3364,6 +3370,7 @@ class ToolUIPart {
     String? status,
     String? argumentsPreview,
     Map<String, dynamic>? imageSend,
+    Map<String, dynamic>? subagentTrace,
     bool? approvalExecuting,
   }) {
     return ToolUIPart(
@@ -3384,7 +3391,118 @@ class ToolUIPart {
       diffText: diffText,
       imagePath: imagePath,
       imageSend: imageSend ?? this.imageSend,
+      subagentTrace: subagentTrace ?? this.subagentTrace,
       approvalExecuting: approvalExecuting ?? this.approvalExecuting,
+    );
+  }
+}
+
+/// P1-2: `12.3k` / `1.2M` / `900` for the helper trace line.
+String _formatTokenCount(int tokens) {
+  if (tokens >= 1000000) {
+    return '${(tokens / 1000000).toStringAsFixed(1)}M';
+  }
+  if (tokens >= 1000) {
+    return '${(tokens / 1000).toStringAsFixed(1)}k';
+  }
+  return '$tokens';
+}
+
+/// P1-2: expandable per-tool helper trace under the collapsed card row.
+/// Rows carry tool name / duration / result size only — never arguments.
+class SubagentTraceExpander extends StatefulWidget {
+  const SubagentTraceExpander({required this.trace, required this.color});
+
+  final Map<String, dynamic> trace;
+  final Color color;
+
+  @override
+  State<SubagentTraceExpander> createState() => _SubagentTraceExpanderState();
+}
+
+class _SubagentTraceExpanderState extends State<SubagentTraceExpander> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final rawItems = widget.trace['items'];
+    final items = rawItems is List ? rawItems : const [];
+    final more = widget.trace['more'] is num
+        ? (widget.trace['more'] as num).toInt()
+        : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedRotation(
+                  turns: _open ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 160),
+                  child: Icon(
+                    Lucide.ChevronRight,
+                    size: 12,
+                    color: widget.color.withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  l10n.subagentTraceTitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: widget.color.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
+            child: items.isEmpty
+                ? Text(
+                    l10n.subagentTraceEmpty,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.color.withOpacity(0.6),
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final item in items)
+                        if (item is Map)
+                          Text(
+                            l10n.subagentTraceStep(
+                              (item['t'] ?? 'tool').toString(),
+                              (item['ms'] ?? 0).toString(),
+                              (item['chars'] ?? 0).toString(),
+                            ),
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontFamily: 'monospace',
+                              color: widget.color.withOpacity(0.7),
+                            ),
+                          ),
+                      if (more > 0)
+                        Text(
+                          l10n.subagentTraceMore(more.toString()),
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: widget.color.withOpacity(0.55),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+      ],
     );
   }
 }
@@ -3756,6 +3874,25 @@ class _ToolCallItem extends StatelessWidget {
                     color: cardTextColor,
                   ),
                 ],
+                // P1-2: helper trace — one summary line plus an expandable
+                // per-tool list. Restored cards get it from persisted extras.
+                if (part.toolName == spawnSubagentToolName &&
+                    (part.subagentTrace?.isNotEmpty ?? false)) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _subagentTraceSummary(l10n, part.subagentTrace!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cardTextColor.withOpacity(0.75),
+                    ),
+                  ),
+                  SubagentTraceExpander(
+                    trace: part.subagentTrace!,
+                    color: cardTextColor,
+                  ),
+                ],
                 if (part.toolName == 'shell_run' && part.loading)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
@@ -3809,6 +3946,93 @@ class _ToolCallItem extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// P1-2: compact one-line summary shown under the tool title.
+  String _subagentTraceSummary(
+    AppLocalizations l10n,
+    Map<String, dynamic> trace,
+  ) {
+    final profile = (trace['profile'] ?? '').toString();
+    final steps = trace['steps'] is num ? (trace['steps'] as num).toInt() : 0;
+    final calls = trace['toolCalls'] is num
+        ? (trace['toolCalls'] as num).toInt()
+        : 0;
+    final tokens = trace['tokens'] is num
+        ? (trace['tokens'] as num).toInt()
+        : 0;
+    return [
+      if (profile.isNotEmpty) profile,
+      l10n.subagentTraceSteps(steps.toString()),
+      l10n.subagentTraceToolCalls(calls.toString()),
+      l10n.subagentTraceTokens(_formatTokenCount(tokens)),
+    ].join(' · ');
+  }
+
+  /// P1-2: trace section for the detail dialog / sheet.
+  Widget _buildSubagentTraceSection(
+    BuildContext context,
+    Map<String, dynamic> trace,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final items = trace['items'] is List ? trace['items'] as List : const [];
+    final more = trace['more'] is num ? (trace['more'] as num).toInt() : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.subagentTraceTitle,
+          style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white10
+                : const Color(0xFFF7F7F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+          ),
+          child: items.isEmpty
+              ? Text(
+                  l10n.subagentTraceEmpty,
+                  style: const TextStyle(fontSize: 12),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final item in items)
+                      if (item is Map)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Text(
+                            l10n.subagentTraceStep(
+                              (item['t'] ?? 'tool').toString(),
+                              (item['ms'] ?? 0).toString(),
+                              (item['chars'] ?? 0).toString(),
+                            ),
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                    if (more > 0)
+                      Text(
+                        l10n.subagentTraceMore(more.toString()),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.55),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 
@@ -4036,6 +4260,14 @@ class _ToolCallItem extends StatelessWidget {
                               children: [
                                 if (diffText.trim().isNotEmpty)
                                   _buildToolDiffSection(context, diffText),
+                                if (part.subagentTrace?.isNotEmpty ??
+                                    false) ...[
+                                  _buildSubagentTraceSection(
+                                    context,
+                                    part.subagentTrace!,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 if (imageSendReason != null) ...[
                                   _buildToolImageSendNotice(
                                     context,
@@ -4159,6 +4391,10 @@ class _ToolCallItem extends StatelessWidget {
                     const SizedBox(height: 12),
                     if (diffText.trim().isNotEmpty)
                       _buildToolDiffSection(context, diffText),
+                    if (part.subagentTrace?.isNotEmpty ?? false) ...[
+                      _buildSubagentTraceSection(context, part.subagentTrace!),
+                      const SizedBox(height: 12),
+                    ],
                     if (imageSendReason != null) ...[
                       _buildToolImageSendNotice(context, imageSendReason),
                       const SizedBox(height: 12),

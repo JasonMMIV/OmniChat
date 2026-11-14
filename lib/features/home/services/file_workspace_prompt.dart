@@ -154,3 +154,80 @@ String? buildFileWorkspacePrompt(
 
   return paragraphs.join('\n\n');
 }
+
+/// P0-3: brief injected into a helper's system prompt.
+///
+/// The helper cannot see the parent conversation, so it receives the same
+/// workspace coordinates the parent got (path + the tools it ACTUALLY has),
+/// the already-rendered workspace file map, and the parent assistant's standing
+/// instructions. Memory blocks are deliberately excluded (A4).
+///
+/// Fail-open by contract: the caller may wrap this in try/catch and spawn
+/// without a brief. Total length is capped (assistant instructions are clipped
+/// first, then the file map, then the whole brief).
+String buildSubagentBrief({
+  String? workspacePath,
+  required Iterable<Map<String, dynamic>> childTools,
+  String? projectInstructions,
+  String? workspaceFileMap,
+  int maxChars = 14000,
+}) {
+  final tools = childTools.toList(growable: false);
+  final workspace = buildFileWorkspacePrompt(workspacePath, tools);
+
+  // The file map is only useful when the helper can actually list files —
+  // the same gating the parent assembly uses (§P0-3 item 3).
+  final advertisesFileList = tools.any((def) {
+    final name = _toolDefinitionName(def);
+    return name == 'file_list';
+  });
+  var map = (workspaceFileMap ?? '').trim();
+  if (!advertisesFileList) map = '';
+
+  var instructions = (projectInstructions ?? '').trim();
+  if (instructions.length > 6000) {
+    instructions = instructions.substring(0, 6000);
+  }
+  if (instructions.isNotEmpty) {
+    instructions =
+        '$instructions\n\n'
+        'If any instruction above refers to tools you were not given, ignore '
+        'that part: your own tool list wins.';
+  }
+
+  var truncated = false;
+
+  String render() {
+    final blocks = <String>[
+      if (workspace != null && workspace.isNotEmpty) workspace,
+      if (map.isNotEmpty) '[Workspace file map]\n$map',
+      if (instructions.isNotEmpty)
+        '[Parent assistant standing instructions]\n$instructions',
+    ];
+    return blocks.join('\n\n');
+  }
+
+  var text = render();
+  // Shrink the most expendable block first: assistant instructions, then the
+  // file map (the helper can always call file_list).
+  if (text.length > maxChars && instructions.isNotEmpty) {
+    final overflow = text.length - maxChars;
+    final keep = instructions.length - overflow - 1;
+    instructions = keep > 0 ? instructions.substring(0, keep) : '';
+    truncated = true;
+    text = render();
+  }
+  if (text.length > maxChars && map.isNotEmpty) {
+    final overflow = text.length - maxChars;
+    final keep = map.length - overflow - 1;
+    map = keep > 0 ? map.substring(0, keep) : '';
+    truncated = true;
+    text = render();
+  }
+  if (text.length > maxChars) {
+    text = text.substring(0, maxChars);
+    truncated = true;
+  }
+  if (truncated) text = '$text\n\n[... brief truncated ...]';
+  return text.trim();
+}

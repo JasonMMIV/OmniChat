@@ -13710,6 +13710,12 @@ abstract class AppLocalizations {
   /// **'ID must be lowercase letters, numbers, - or _ (max 40).'**
   String get subagentProfileIdInvalid;
 
+  /// No description provided for @subagentProfileIdInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'A profile with this name already exists. Choose another name.'**
+  String get subagentProfileIdInUse;
+
   /// No description provided for @subagentProfileModelPair.
   ///
   /// In en, this message translates to:

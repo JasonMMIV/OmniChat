@@ -1,4 +1,5 @@
 import '../agent/approval.dart' as approval;
+import '../agent/subagent.dart';
 import '../logging/flutter_logger.dart';
 import 'ask_user_models.dart';
 import 'storage/message_part_codec.dart';
@@ -140,7 +141,12 @@ List<ToolReplayPair> buildToolReplayPairs(
         event: event,
         toolName: name,
         toolCallId: id,
-        content: content,
+        // P1-5: a helper summary can be 24k chars and would otherwise be
+        // replayed in full on every turn. Keep the contract fields + a 2k
+        // summary; `session_id` survives so a follow-up can still resume.
+        content: name == spawnSubagentToolName
+            ? compactSubagentReplay(content)
+            : content,
       ),
     );
   }

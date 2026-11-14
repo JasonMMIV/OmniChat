@@ -6,6 +6,11 @@ class TokenUsage {
   final int cachedTokens;
   final int totalTokens;
 
+  /// Helper (subagent) tokens spent on behalf of this message. Counted in
+  /// [totalTokens] (cost) but NEVER in promptTokens — the context-usage ring
+  /// measures the parent prompt only (plan A3 / §P1-4).
+  final int subagentTokens;
+
   /// OpenCode-only cost/billing telemetry. Null for every other provider.
   final MessageUsage? messageUsage;
 
@@ -14,6 +19,7 @@ class TokenUsage {
     this.completionTokens = 0,
     this.cachedTokens = 0,
     this.totalTokens = 0,
+    this.subagentTokens = 0,
     this.messageUsage,
   });
 
@@ -35,12 +41,18 @@ class TokenUsage {
         ? other.completionTokens
         : completionTokens;
     final cached = other.cachedTokens > 0 ? other.cachedTokens : cachedTokens;
-    final total = prompt + completion;
+    final subagent = other.subagentTokens > subagentTokens
+        ? other.subagentTokens
+        : subagentTokens;
+    // Helper tokens belong to the total; dropping them here would erase usage
+    // reported by a previous spawn (plan P1-4 review fix).
+    final total = prompt + completion + subagent;
     return TokenUsage(
       promptTokens: prompt,
       completionTokens: completion,
       cachedTokens: cached,
       totalTokens: total,
+      subagentTokens: subagent,
       messageUsage: other.messageUsage ?? messageUsage,
     );
   }
@@ -56,12 +68,16 @@ class TokenUsage {
   TokenUsage sum(TokenUsage other) {
     final p = promptTokens + other.promptTokens;
     final c = completionTokens + other.completionTokens;
+    final s = subagentTokens + other.subagentTokens;
+    // Helper tokens are already included in each side's `totalTokens`, so the
+    // totals are added as-is (adding `s` again would double-count).
     final t = totalTokens + other.totalTokens;
     return TokenUsage(
       promptTokens: p,
       completionTokens: c,
       cachedTokens: cachedTokens + other.cachedTokens,
-      totalTokens: t > 0 ? t : p + c,
+      totalTokens: t > 0 ? t : p + c + s,
+      subagentTokens: s,
       messageUsage: MessageUsage.accumulate(messageUsage, other.messageUsage),
     );
   }
@@ -75,6 +91,7 @@ class TokenUsage {
       completionTokens: merged.completionTokens,
       cachedTokens: merged.cachedTokens,
       totalTokens: merged.totalTokens,
+      subagentTokens: merged.subagentTokens,
       messageUsage: MessageUsage.accumulate(messageUsage, other.messageUsage),
     );
   }
@@ -90,6 +107,7 @@ class TokenUsage {
       completionTokens: completionTokens,
       cachedTokens: cachedTokens,
       totalTokens: totalTokens,
+      subagentTokens: subagentTokens,
       messageUsage: parsed,
     );
   }

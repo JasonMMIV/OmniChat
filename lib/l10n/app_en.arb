@@ -3151,6 +3151,7 @@
   "subagentProfileCustom": "Custom",
   "subagentProfileNameRequired": "Enter a name.",
   "subagentProfileIdInvalid": "ID must be lowercase letters, numbers, - or _ (max 40).",
+  "subagentProfileIdInUse": "A profile with this name already exists. Choose another name.",
   "subagentProfileModelPair": "Choose both a provider and a model, or follow the conversation.",
   "subagentProfileCustomTools": "Other tool names",
   "subagentProfileCustomToolsHint": "Comma-separated; use this for MCP or memory tools.",

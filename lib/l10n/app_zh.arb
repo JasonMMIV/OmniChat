@@ -2415,6 +2415,7 @@
   "subagentProfileCustom": "自订",
   "subagentProfileNameRequired": "请输入名称。",
   "subagentProfileIdInvalid": "ID 只能是小写字母、数字、- 或 _（最多 40 字）。",
+  "subagentProfileIdInUse": "已有同名 profile，请换一个名称。",
   "subagentProfileModelPair": "请同时选择供应商与模型，或选择跟随对话。",
   "subagentProfileCustomTools": "其他工具名称",
   "subagentProfileCustomToolsHint": "以逗号分隔；可加入 MCP 或记忆工具。",

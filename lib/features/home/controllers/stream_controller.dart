@@ -6,6 +6,7 @@ import '../../../core/models/answer_review.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
+import '../../../core/services/agent/subagent.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/tool_result_images.dart';
@@ -410,12 +411,14 @@ class StreamController {
     List<Map<String, dynamic>> Function(String messageId)? getToolEventsFromDb,
   ) {
     if (getToolEventsFromDb == null) return const <String, dynamic>{};
-    // search_web and the file tools carry UI-only extras — short-circuit so
-    // the tool-event box is never read for unrelated tools (avoids extra
-    // Hive reads per result in long agent runs).
-    if (name != 'search_web' && !name.startsWith('file_')) {
-      return const <String, dynamic>{};
-    }
+          // search_web, spawn_subagent and the file tools carry UI-only extras —
+      // short-circuit so the tool-event box is never read for unrelated tools
+      // (avoids extra reads per result in long agent runs).
+      if (name != 'search_web' &&
+          name != spawnSubagentToolName &&
+          !name.startsWith('file_')) {
+        return const <String, dynamic>{};
+      }
     try {
       final events = getToolEventsFromDb(messageId);
       Map<String, dynamic> extrasOf(Map<String, dynamic> e) => {
@@ -916,6 +919,7 @@ class StreamController {
               : null,
           diffText: extras['diffText']?.toString(),
           imagePath: extras['imagePath']?.toString(),
+          subagentTrace: _toolTraceMap(extras['subagentTrace']),
         );
       } else {
         parts.add(
@@ -937,6 +941,7 @@ class StreamController {
             diffText: extras['diffText']?.toString(),
             imagePath: extras['imagePath']?.toString(),
             imageSend: _toolImageSendMap(extras['imageSend']),
+            subagentTrace: _toolTraceMap(extras['subagentTrace']),
           ),
         );
       }
@@ -1398,6 +1403,7 @@ class StreamController {
                 diffRemoved: summary.diffRemoved,
                 imagePath: summary.imagePath,
                 imageSend: summary.imageSend,
+                subagentTrace: summary.subagentTrace,
               ),
             )
             .toList();
@@ -1476,6 +1482,7 @@ class GenerationContext {
     required this.streamOutput,
     this.generateTitleOnFinish = true,
     this.toolImagePolicy,
+    this.subagentUsage,
   });
 
   final ChatMessage assistantMessage;
@@ -1502,6 +1509,10 @@ class GenerationContext {
   /// Stage 2: send-time tool-result image policy (workspace root + global
   /// switch). Null disables vision plumbing for this generation.
   final ToolImagePolicy? toolImagePolicy;
+
+  /// P1-4: helper tokens spent during this generation. Folded into the
+  /// terminal `totalTokens` only; never into `promptTokens`.
+  final SubagentUsageAccumulator? subagentUsage;
 }
 
 /// State object for streaming message generation.
@@ -1767,6 +1778,10 @@ Map<String, dynamic>? _toolImageSendMap(Object? value) {
   }
   return null;
 }
+
+/// P1-2: helper trace extras (`items` is a list of `{t, ms, chars}`).
+Map<String, dynamic>? _toolTraceMap(Object? value) =>
+    _toolImageSendMap(value);
 
 class _Position {
   _Position(this.index);

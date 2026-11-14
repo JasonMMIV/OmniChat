@@ -222,6 +222,7 @@ class GenerationController {
     required bool streamOutput,
     bool generateTitleOnFinish = true,
     ToolImagePolicy? toolImagePolicy,
+    SubagentUsageAccumulator? subagentUsage,
   }) {
     return stream_ctrl.GenerationContext(
       assistantMessage: assistantMessage,
@@ -241,6 +242,7 @@ class GenerationController {
       streamOutput: streamOutput,
       generateTitleOnFinish: generateTitleOnFinish,
       toolImagePolicy: toolImagePolicy,
+      subagentUsage: subagentUsage,
     );
   }
 }

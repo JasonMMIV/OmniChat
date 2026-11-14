@@ -74,6 +74,10 @@ const List<String> kPreservedToolEventExtraKeys = <String>[
   // write_todos provenance (`todo_v1_migration` / later `user_clear`);
   // read back by toolEventFromStoredPart and the todo projection.
   'origin',
+  // P1-2: UI-only helper trace (tool name / duration / result size; no args)
+  // and the helper token count. Never replayed to a model.
+  'subagentTrace',
+  'subagentTokens',
 ];
 
 /// Normalizes a legacy approval state to the closed set. `null` and unknown
@@ -291,6 +295,7 @@ class ToolPartSummary {
     this.diffRemoved,
     this.imagePath,
     this.imageSend,
+    this.subagentTrace,
   });
 
   final int partId;
@@ -336,6 +341,10 @@ class ToolPartSummary {
   /// extracted from `metadata_json` so a restored card can explain why the
   /// model did not receive the image.
   final Map<String, dynamic>? imageSend;
+
+  /// P1-2: helper trace (status/profile/steps/tokens + per-tool items) from
+  /// `metadata_json`. UI-only.
+  final Map<String, dynamic>? subagentTrace;
 
   bool get contentLoaded => eagerContent != null;
   bool get hasContent => contentLengthChars > 0;
@@ -409,6 +418,7 @@ ToolPartSummary toolPartSummaryFromEvent({
     diffRemoved: _asInt(event['diffRemoved']),
     imagePath: event['imagePath']?.toString(),
     imageSend: _asStringMap(event['imageSend']),
+    subagentTrace: _asStringMap(event['subagentTrace']),
   );
 }
 

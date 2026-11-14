@@ -18,6 +18,7 @@ import '../../models/conversation.dart';
 import '../../models/file_record.dart';
 import '../../models/workspace_config.dart';
 import '../agent/checkpoint/agent_run_checkpoint_store.dart';
+import '../agent/subagent_session_store.dart';
 import '../logging/flutter_logger.dart';
 import '../file/session_outputs.dart';
 import '../file/tool_image_access_ledger.dart';
@@ -610,6 +611,9 @@ class ChatService extends ChangeNotifier {
     String id, {
     bool cleanup = true,
   }) async {
+    // Helper sessions are keyed by conversation; a deleted conversation must
+    // not leave a resumable transcript behind (even if its queue was idle).
+    SubagentSessionStore.shared.clearConversation(id);
     if (_draftConversations.containsKey(id)) {
       _draftConversations.remove(id);
       _draftWorkspaceConfigs.remove(id);
@@ -2214,6 +2218,7 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> _afterClearRows({required bool deleteUploads}) async {
+    SubagentSessionStore.shared.clear();
     _draftConversations.clear();
     _draftWorkspaceConfigs.clear();
     _currentConversationId = null;

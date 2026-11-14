@@ -7221,6 +7221,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get subagentProfileIdInvalid => 'ID 只能是小写字母、数字、- 或 _（最多 40 字）。';
 
   @override
+  String get subagentProfileIdInUse => '已有同名 profile，请换一个名称。';
+
+  @override
   String get subagentProfileModelPair => '请同时选择供应商与模型，或选择跟随对话。';
 
   @override
@@ -14259,6 +14262,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get subagentProfileIdInvalid => 'ID 只能是小写字母、数字、- 或 _（最多 40 字）。';
+
+  @override
+  String get subagentProfileIdInUse => '已有同名 profile，请换一个名称。';
 
   @override
   String get subagentProfileModelPair => '请同时选择供应商与模型，或选择跟随对话。';
@@ -21398,6 +21404,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get subagentProfileIdInvalid => 'ID 只能是小寫字母、數字、- 或 _（最多 40 字）。';
+
+  @override
+  String get subagentProfileIdInUse => '已有同名 profile，請換一個名稱。';
 
   @override
   String get subagentProfileModelPair => '請同時選擇供應商與模型，或選擇跟隨對話。';

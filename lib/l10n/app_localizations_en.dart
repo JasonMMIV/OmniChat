@@ -7386,6 +7386,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'ID must be lowercase letters, numbers, - or _ (max 40).';
 
   @override
+  String get subagentProfileIdInUse =>
+      'A profile with this name already exists. Choose another name.';
+
+  @override
   String get subagentProfileModelPair =>
       'Choose both a provider and a model, or follow the conversation.';
 

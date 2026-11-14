@@ -1280,6 +1280,7 @@ class SqliteChatStorage extends ChatStorage {
             diffRemoved: _metadataIntValue(row.metadataJson, 'diffRemoved'),
             imagePath: _metadataValue(row.metadataJson, 'imagePath'),
             imageSend: _metadataMap(row.metadataJson, 'imageSend'),
+            subagentTrace: _metadataMap(row.metadataJson, 'subagentTrace'),
           ),
         );
       }

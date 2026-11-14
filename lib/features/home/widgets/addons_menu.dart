@@ -11,6 +11,7 @@ import '../../../core/services/agent/subagent.dart';
 import '../../../core/services/chat/ask_user_models.dart';
 import '../../../core/services/haptics.dart';
 import '../../../core/services/chat/todo_models.dart';
+import '../../settings/pages/subagent_profiles_page.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -246,6 +247,17 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
               ),
             ),
             _MenuRow(
+              leading: Icon(Lucide.Users, size: 16, color: cs.onSurface),
+              title: l10n.subagentProfilesTitle,
+              subtitle: l10n.subagentProfilesDescription,
+              trailing: Icon(
+                Lucide.ChevronRight,
+                size: 14,
+                color: cs.onSurface.withOpacity(0.55),
+              ),
+              onTap: _openSubagentProfiles,
+            ),
+            _MenuRow(
               leading: Icon(
                 Lucide.ScanSearch,
                 size: 16,
@@ -417,6 +429,22 @@ class _AddonsMenuContentState extends State<AddonsMenuContent> {
     return context
         .read<SettingsProvider>()
         .setWorkspaceToolEnabled(spawnSubagentToolName, v);
+  }
+
+  /// P1-1 (A1): profile registry editor. Close the hosting menu first — the
+  /// desktop popover is an OverlayEntry above the navigator, so a page pushed
+  /// while it is still inserted would appear behind it (same fix as the
+  /// workspace/Add-ons menus).
+  Future<void> _openSubagentProfiles() async {
+    final navigator = Navigator.of(context);
+    await widget.onRequestClose?.call();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!navigator.mounted) return;
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SubagentProfilesPage(),
+      ),
+    );
   }
 
   Future<void> _toggleServer(String serverId, bool selected) async {

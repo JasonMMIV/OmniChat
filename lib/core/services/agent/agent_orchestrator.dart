@@ -99,6 +99,11 @@ class AgentOrchestrator {
     // numbers, but the revision still needs the approval-pause veto before
     // another model round.
     AgentLoopHooks revisionHooks = const AgentLoopHooks(),
+
+    /// P1-4: helper tokens spent during this run (subagents). Folded into the
+    /// released terminal's `totalTokens` and `TokenUsage.subagentTokens`;
+    /// never into `promptTokens` (the context ring stays untouched).
+    int Function()? subagentTokens,
     Future<Stream<ChatStreamChunk>> Function(
       List<Map<String, dynamic>> messages,
     )?
@@ -205,6 +210,8 @@ class AgentOrchestrator {
     final draft = StringBuffer();
     ChatStreamChunk? heldTerminal;
     var reviewUsage = const TokenUsage();
+    // Read lazily: helpers may finish at any point before the terminal.
+    int helperTokens() => math.max(0, subagentTokens?.call() ?? 0);
 
     // Driver-side per-round usage total: a round's real total is the MAX
     // usage-carrying chunk of that round (every transport reports cumulative
@@ -290,7 +297,12 @@ class AgentOrchestrator {
             yield ChatStreamChunk(
               content: '',
               isDone: true,
-              totalTokens: tokensUsed,
+              totalTokens: tokensUsed + helperTokens(),
+              usage: helperTokens() > 0
+                  ? const TokenUsage().sum(
+                      TokenUsage(subagentTokens: helperTokens()),
+                    )
+                  : null,
               softStopReason: switch (reason) {
                 AgentRunStopReason.maxStepsReached => 'max_steps',
                 AgentRunStopReason.tokenBudgetReached => 'token_budget',
@@ -307,7 +319,12 @@ class AgentOrchestrator {
             yield ChatStreamChunk(
               content: '',
               isDone: true,
-              totalTokens: tokensUsed,
+              totalTokens: tokensUsed + helperTokens(),
+              usage: helperTokens() > 0
+                  ? const TokenUsage().sum(
+                      TokenUsage(subagentTokens: helperTokens()),
+                    )
+                  : null,
             );
             return;
           }
@@ -339,6 +356,7 @@ class AgentOrchestrator {
               tokensUsed: baseTokensUsed,
               reviewUsage: reviewUsage,
               reviewed: false,
+              subagentTokens: helperTokens(),
             );
             return;
           }
@@ -417,6 +435,7 @@ class AgentOrchestrator {
               reviewUsage: reviewUsage,
               reviewed: false,
               reviewReport: report,
+              subagentTokens: helperTokens(),
             );
             return;
           }
@@ -474,6 +493,7 @@ class AgentOrchestrator {
               reviewUsage: reviewUsage,
               reviewed: completed,
               reviewReport: report,
+              subagentTokens: helperTokens(),
             );
             return;
           }
@@ -701,6 +721,7 @@ class AgentOrchestrator {
               reviewUsage: reviewUsage,
               reviewed: false,
               reviewReport: report,
+              subagentTokens: helperTokens(),
             );
             return;
           }
@@ -722,6 +743,7 @@ class AgentOrchestrator {
             reviewUsage: reviewUsage,
             reviewed: true,
             reviewReport: report,
+            subagentTokens: helperTokens(),
           );
           return;
       }
@@ -902,18 +924,26 @@ ChatStreamChunk _releaseHeldTerminal({
   required TokenUsage reviewUsage,
   required bool reviewed,
   AnswerReviewReport? reviewReport,
+  int subagentTokens = 0,
 }) {
   final reviewTotal = reviewUsage.totalTokens > 0
       ? reviewUsage.totalTokens
       : reviewUsage.promptTokens + reviewUsage.completionTokens;
+  final helperTotal = math.max(0, subagentTokens);
   final hasReviewUsage =
       reviewTotal > 0 ||
       reviewUsage.cachedTokens > 0 ||
       reviewUsage.messageUsage != null;
-  final baseTotal = math.max(held.totalTokens, tokensUsed);
-  final TokenUsage? usage = (held.usage == null && !hasReviewUsage)
+  final hasHelperUsage = helperTotal > 0;
+  final baseTotal = math.max(held.totalTokens, tokensUsed) + helperTotal;
+  final TokenUsage? usage =
+      (held.usage == null && !hasReviewUsage && !hasHelperUsage)
       ? held.usage
-      : (held.usage ?? const TokenUsage()).sum(reviewUsage);
+      : (held.usage ?? const TokenUsage())
+            .sum(reviewUsage)
+            .sum(
+              TokenUsage(subagentTokens: helperTotal, totalTokens: helperTotal),
+            );
   return held.copyWith(
     isDone: true,
     totalTokens: baseTotal + reviewTotal,

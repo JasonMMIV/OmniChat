@@ -114,7 +114,8 @@ void main() {
         'final round summary', () async {
       final calls = <List<Map<String, dynamic>>>[];
       final runner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           calls.add(List<Map<String, dynamic>>.of(messages));
           if (calls.length == 1) {
             return Stream<ChatStreamChunk>.fromIterable([
@@ -162,7 +163,8 @@ void main() {
     test('stops at its own step ceiling and reports a partial summary', () async {
       var rounds = 0;
       final runner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           rounds++;
           return Stream<ChatStreamChunk>.fromIterable([
             _text('round $rounds'),
@@ -191,7 +193,8 @@ void main() {
       // An open stream that never terminates: the deadline must cancel it.
       final hang = StreamController<ChatStreamChunk>();
       final hangingRunner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           hang.add(_text('Partial answer so far', total: 7));
           return hang.stream;
         },
@@ -217,7 +220,7 @@ void main() {
 
     test('reports transport errors as a structured outcome', () async {
       final runner = SubagentRunner(
-        sendRound: (messages) async => throw StateError('boom'),
+        sendRound: (request) async => throw StateError('boom'),
         onToolCall: (call) async => 'ok',
       );
 
@@ -235,7 +238,8 @@ void main() {
       var maxActive = 0;
 
       Future<SubagentRunner> makeRunner() async => SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           active++;
           if (active > maxActive) maxActive = active;
           await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -261,7 +265,8 @@ void main() {
     test('stops at a round boundary when the generation is cancelled', () async {
       var cancelled = false;
       final runner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           return Stream<ChatStreamChunk>.fromIterable([
             _text('working'),
             _toolCall('c1', 'file_read'),
@@ -291,7 +296,8 @@ void main() {
         'cleanly', () async {
       var cancelled = false;
       final runner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           // The stop arrives while the round is in flight. The transport may
           // still end the stream without an error/terminal — the runner must
           // not report that as a finished helper.
@@ -315,7 +321,8 @@ void main() {
 
     test('independent usage accounting does not inherit parent tokens', () async {
       final runner = SubagentRunner(
-        sendRound: (messages) async {
+        sendRound: (request) async {
+          final messages = request.messages;
           return Stream<ChatStreamChunk>.fromIterable([
             _text('answer', total: 120),
             _done(total: 120),

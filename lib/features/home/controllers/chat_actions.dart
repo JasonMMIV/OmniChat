@@ -48,6 +48,7 @@ import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/agent/agent_orchestrator.dart';
 import '../../../core/services/agent/answer_review.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint.dart';
+import '../../../core/services/agent/subagent_session_store.dart';
 import '../../../core/services/agent/checkpoint/agent_run_checkpoint_store.dart';
 import '../../../core/services/agent/checkpoint/agent_run_journal.dart';
 import '../../../core/services/logging/flutter_logger.dart';
@@ -2075,11 +2076,7 @@ class ChatActions {
   }
 
   /// Edits a queued item's text (attachments stay untouched per §9).
-  void updateQueuedMessageText(
-    String conversationId,
-    String id,
-    String text,
-  ) {
+  void updateQueuedMessageText(String conversationId, String id, String text) {
     QueuedMessage? existing;
     for (final item in turnQueue.queueFor(conversationId)) {
       if (item.id == id) {
@@ -2146,6 +2143,7 @@ class ChatActions {
     _dispatchCooldownTimers.remove(conversationId)?.cancel();
     steeringMailbox.abandon(conversationId);
     turnQueue.clearConversation(conversationId);
+    SubagentSessionStore.shared.clearConversation(conversationId);
     onQueueChanged?.call();
   }
 
@@ -2518,6 +2516,10 @@ class ChatActions {
         imageAspectRatio: ctx.settings.imageAspectRatio,
         toolImagePolicy: ctx.toolImagePolicy,
         answerReview: answerReview,
+        // P1-4: helper tokens ride the terminal's totalTokens.
+        subagentTokens: ctx.subagentUsage == null
+            ? null
+            : () => ctx.subagentUsage!.tokens,
       );
 
       await _conversationStreams[conversationId]?.cancel();

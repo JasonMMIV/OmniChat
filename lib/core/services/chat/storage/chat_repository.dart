@@ -1155,6 +1155,7 @@ class ChatRepository {
     final diffRemoved = _metadataInt(r'$.diffRemoved');
     final imagePath = _metadataText(r'$.imagePath');
     final imageSend = _metadataText(r'$.imageSend');
+    final subagentTrace = _metadataText(r'$.subagentTrace');
     final query = db.selectOnly(db.messageParts)
       ..addColumns([
         db.messageParts.partId,
@@ -1174,6 +1175,7 @@ class ChatRepository {
         diffRemoved,
         imagePath,
         imageSend,
+        subagentTrace,
         contentLength,
         argumentsLength,
         argumentsPreview,
@@ -1201,6 +1203,7 @@ class ChatRepository {
           diffRemoved: diffRemoved,
           imagePath: imagePath,
           imageSend: imageSend,
+          subagentTrace: subagentTrace,
         ),
     ];
   }
@@ -1258,6 +1261,7 @@ class ChatRepository {
     final diffRemoved = _metadataInt(r'$.diffRemoved');
     final imagePath = _metadataText(r'$.imagePath');
     final imageSend = _metadataText(r'$.imageSend');
+    final subagentTrace = _metadataText(r'$.subagentTrace');
 
     final result = <ToolPartSummary>[];
     for (var start = 0; start < ids.length; start += 500) {
@@ -1284,6 +1288,7 @@ class ChatRepository {
           diffRemoved,
           imagePath,
           imageSend,
+          subagentTrace,
           contentLength,
           argumentsLength,
           argumentsPreview,
@@ -1313,6 +1318,7 @@ class ChatRepository {
             diffRemoved: diffRemoved,
             imagePath: imagePath,
             imageSend: imageSend,
+            subagentTrace: subagentTrace,
           ),
       ]);
     }
@@ -1411,6 +1417,7 @@ class ChatRepository {
     required Expression<int> diffRemoved,
     required Expression<String> imagePath,
     required Expression<String> imageSend,
+    required Expression<String> subagentTrace,
   }) {
     final status = row.read(db.messageParts.status) ?? kPartStatusPending;
     final contentChars = row.read(contentLength) ?? 0;
@@ -1439,6 +1446,7 @@ class ChatRepository {
       diffRemoved: row.read(diffRemoved),
       imagePath: row.read(imagePath),
       imageSend: _jsonMap(row.read(imageSend)),
+      subagentTrace: _jsonMap(row.read(subagentTrace)),
     );
   }
 

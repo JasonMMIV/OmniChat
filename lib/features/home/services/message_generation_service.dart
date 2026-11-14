@@ -62,6 +62,9 @@ class PreparedGeneration {
   /// Stage 2: workspace-bound policy for send-time tool-result images.
   final ToolImagePolicy? toolImagePolicy;
 
+  /// P1-4: helper token accumulator shared with the terminal usage merge.
+  final SubagentUsageAccumulator? subagentUsage;
+
   PreparedGeneration({
     required this.apiMessages,
     required this.toolDefs,
@@ -69,6 +72,7 @@ class PreparedGeneration {
     required this.hasBuiltInSearch,
     required this.lastUserImagePaths,
     this.toolImagePolicy,
+    this.subagentUsage,
   });
 }
 
@@ -419,6 +423,7 @@ class MessageGenerationService {
     // system prefix byte-identical across turns. Gated on the SAME predicate
     // that registers the file tools (§2.3.1 doctrine): `file_list` must
     // actually be advertised in this request.
+    String? workspaceFileMap;
     if (workspacePath != null &&
         (workspaceResolution?.enabled ?? false) &&
         toolDefs.any((def) {
@@ -456,6 +461,9 @@ class MessageGenerationService {
           toolWrittenAbsolutePaths: toolWrittenPaths,
         );
         if (fileMap.isNotEmpty) {
+          // P0-3: keep the rendered map for the helper brief — a spawn must
+          // not rescan the workspace during a parent tool call.
+          workspaceFileMap = fileMap;
           messageBuilderService.appendToSystemMessage(apiMessages, fileMap);
         }
       } catch (e) {
@@ -499,6 +507,16 @@ class MessageGenerationService {
       }
     }
 
+    // Test doubles may not implement every SettingsProvider getter.
+    var sendToolImages = true;
+    try {
+      sendToolImages = settings.sendToolImages;
+    } catch (_) {}
+
+    // P1-4: helper tokens are reported through the launch config and folded
+    // into the terminal usage by the orchestrator (totalTokens only; the
+    // context ring must not move).
+    final subagentUsage = SubagentUsageAccumulator();
     final onToolCall = toolDefs.isNotEmpty
         ? generationController.buildToolCallHandler(
             settings,
@@ -506,10 +524,10 @@ class MessageGenerationService {
             conversationId: currentConversation?.id,
             messageId: assistantMessageId,
             workspacePath: workspacePath,
-            // P2-3: `spawn_subagent` inherits the generation snapshot — the
-            // same provider/model, the tools actually advertised here, and
-            // the assistant's custom headers/body + output cap (a helper
-            // request must be indistinguishable from the parent on the wire).
+            // P2-3/P1-6: `spawn_subagent` inherits the generation snapshot —
+            // provider/model, the tools actually advertised here, the
+            // assistant's custom headers/body + output cap, the run's sampling
+            // settings, and the brief material (P0-3).
             subagentContext: SubagentLaunchConfig(
               providerKey: providerKey,
               modelId: modelId,
@@ -517,15 +535,17 @@ class MessageGenerationService {
               extraHeaders: generationController.buildCustomHeaders(assistant),
               extraBody: generationController.buildCustomBody(assistant),
               maxTokens: assistant?.maxTokens,
+              temperature: assistant?.temperature,
+              topP: assistant?.topP,
+              thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
+              toolImagesEnabled: sendToolImages,
+              projectInstructions: assistant?.systemPrompt,
+              workspaceFileMap: workspaceFileMap,
+              onUsage: subagentUsage.add,
             ),
           )
         : null;
 
-    // Test doubles may not implement every SettingsProvider getter.
-    var sendToolImages = true;
-    try {
-      sendToolImages = settings.sendToolImages;
-    } catch (_) {}
     return PreparedGeneration(
       apiMessages: apiMessages,
       toolDefs: toolDefs,
@@ -536,6 +556,7 @@ class MessageGenerationService {
         workspaceRoot: workspacePath,
         enabled: sendToolImages,
       ),
+      subagentUsage: subagentUsage,
     );
   }
 
@@ -631,6 +652,7 @@ class MessageGenerationService {
       streamOutput: assistant?.streamOutput ?? true,
       generateTitleOnFinish: generateTitleOnFinish,
       toolImagePolicy: prepared.toolImagePolicy,
+      subagentUsage: prepared.subagentUsage,
     );
   }
 

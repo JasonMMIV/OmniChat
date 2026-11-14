@@ -27,6 +27,7 @@ import '../models/provider_oauth.dart';
 import '../models/workspace_config.dart';
 import '../models/memory_entry.dart';
 import '../services/memory/memory_block_builder.dart';
+import '../services/agent/subagent_profiles.dart';
 import '../services/haptics.dart';
 import '../services/screen_wakelock.dart';
 import '../../utils/app_directories.dart';
@@ -263,6 +264,10 @@ class SettingsProvider extends ChangeNotifier {
   /// tool preferences are user intent and sync across devices.
   static const String _workspaceToolsDisabledKey =
       'workspace_tools_disabled_v1';
+
+  /// P1-1: named subagent profiles (JSON list). Synced with backups; a parse
+  /// failure falls back to the built-ins only.
+  static const String _subagentProfilesKey = 'subagent_profiles_v1';
 
   /// Independent planning-tool switch (Phase 3-4 of
   /// docs/write_todos_improvement_plan.md). `write_todos` no longer needs a
@@ -565,6 +570,43 @@ class SettingsProvider extends ChangeNotifier {
   WorkspaceConfig get defaultWorkspaceConfig => _defaultWorkspaceConfig;
 
   Set<String> _workspaceToolsDisabled = <String>{};
+
+  /// P1-1: named subagent profiles (built-ins always present).
+  List<SubagentProfile> _subagentProfiles = SubagentProfiles.builtIns;
+  List<SubagentProfile> get subagentProfiles =>
+      List<SubagentProfile>.unmodifiable(_subagentProfiles);
+
+  /// Replace the profile list. Invalid entries (slug ids, empty names,
+  /// over-long values, broken model pairs, out-of-range budgets) are dropped
+  /// here; built-ins always survive the merge so no caller can persist an
+  /// unusable registry.
+  Future<void> setSubagentProfiles(List<SubagentProfile> profiles) async {
+    final valid = <SubagentProfile>[];
+    for (final profile in profiles) {
+      // Keep persisted read-only profiles honest even when a direct caller
+      // bypasses the editor: a stale allowlist must not retain write tools.
+      final sanitized = profile.readOnly && profile.allowedTools != null
+          ? profile.copyWith(
+              allowedTools: profile.allowedTools!
+                  .where((name) => !subagentWriteToolNames.contains(name))
+                  .toSet(),
+            )
+          : profile;
+      if (SubagentProfiles.validate(sanitized, isNew: false) == null) {
+        valid.add(sanitized);
+      }
+    }
+    final merged = SubagentProfiles.mergeWithBuiltIns(valid)
+        .take(SubagentProfiles.maxProfiles)
+        .toList(growable: false);
+    _subagentProfiles = merged;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _subagentProfilesKey,
+      jsonEncode(<Map<String, dynamic>>[for (final p in merged) p.toJson()]),
+    );
+  }
 
   /// Whether a workspace tool is offered to the LLM. Unknown tool names
   /// default to enabled.
@@ -943,6 +985,23 @@ class SettingsProvider extends ChangeNotifier {
     _workspaceToolsDisabled =
         (prefs.getStringList(_workspaceToolsDisabledKey) ?? const <String>[])
             .toSet();
+    // P1-1: subagent profiles — fail-open to the built-ins on any bad payload.
+    try {
+      final rawProfiles = prefs.getString(_subagentProfilesKey);
+      if (rawProfiles != null && rawProfiles.trim().isNotEmpty) {
+        final decoded = jsonDecode(rawProfiles);
+        if (decoded is List) {
+          final parsed = <SubagentProfile>[];
+          for (final item in decoded) {
+            final profile = SubagentProfile.tryFromJson(item);
+            if (profile != null) parsed.add(profile);
+          }
+          _subagentProfiles = SubagentProfiles.mergeWithBuiltIns(parsed);
+        }
+      }
+    } catch (_) {
+      _subagentProfiles = SubagentProfiles.builtIns;
+    }
     _planningEnabled = prefs.getBool(_planningEnabledKey) ?? true;
     _todoEventProjectionV1 = prefs.getBool(_todoEventProjectionV1Key) ?? true;
     _showMessageNavButtons = prefs.getBool(_displayShowMessageNavKey) ?? true;
@@ -4230,6 +4289,7 @@ Synthesize your reasoning and research into a final response. The structure shou
     copy._answerReviewMode = answerReviewMode ?? _answerReviewMode;
     copy._skillsPreloadEnabled = _skillsPreloadEnabled;
     copy._workspaceToolsDisabled = _workspaceToolsDisabled;
+    copy._subagentProfiles = _subagentProfiles;
     copy._fileOutsideWorkspaceAllowAllV1 = _fileOutsideWorkspaceAllowAllV1;
     copy._shellAllowAllV1 = _shellAllowAllV1;
     copy._planningEnabled = _planningEnabled;
