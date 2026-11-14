@@ -25,10 +25,10 @@ IconData subagentProfileIcon(String id) {
   }
 }
 
-/// [subagentProfileIcon] plus a small lock badge for read-only profiles.
+/// [subagentProfileIcon] as a widget.
 ///
-/// The icon occupies exactly [size] so read-only and writable rows keep their
-/// text aligned; the badge overflows into the row's existing gap.
+/// Read-only profiles use the same role icon as writable ones; read-only
+/// state is conveyed by the subtitle text, not by a lock badge.
 class SubagentProfileIcon extends StatelessWidget {
   const SubagentProfileIcon({
     super.key,
@@ -43,41 +43,6 @@ class SubagentProfileIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final iconColor = color ?? cs.primary;
-    final badgeSize = size * 0.55;
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(subagentProfileIcon(profile.id), size: size, color: iconColor),
-          if (profile.readOnly)
-            Positioned(
-              right: -size * 0.18,
-              bottom: -size * 0.12,
-              child: Container(
-                width: badgeSize,
-                height: badgeSize,
-                decoration: BoxDecoration(
-                  color: cs.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: iconColor.withValues(alpha: 0.35),
-                    width: 0.8,
-                  ),
-                ),
-                child: Icon(
-                  Lucide.Lock,
-                  size: badgeSize * 0.68,
-                  color: iconColor,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+    return Icon(subagentProfileIcon(profile.id), size: size, color: color);
   }
 }

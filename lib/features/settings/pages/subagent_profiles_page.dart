@@ -434,6 +434,30 @@ class _SubagentProfileEditorPageState
     );
   }
 
+  /// Shared decoration so labels, hints and floating labels match the 13.5px
+  /// input text instead of Material's larger default label style.
+  InputDecoration _inputDecoration(String label, {String? hint}) {
+    final cs = Theme.of(context).colorScheme;
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: TextStyle(
+        fontSize: 13.5,
+        color: cs.onSurface.withValues(alpha: 0.6),
+      ),
+      floatingLabelStyle: TextStyle(
+        fontSize: 11.5,
+        color: cs.onSurface.withValues(alpha: 0.55),
+      ),
+      hintStyle: TextStyle(
+        fontSize: 13.5,
+        color: cs.onSurface.withValues(alpha: 0.45),
+      ),
+      isDense: true,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    );
+  }
+
   Widget _field(
     String label,
     TextEditingController controller, {
@@ -448,12 +472,7 @@ class _SubagentProfileEditorPageState
         maxLines: maxLines,
         keyboardType: keyboardType,
         style: const TextStyle(fontSize: 13.5),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+        decoration: _inputDecoration(label, hint: hint),
       ),
     );
   }
@@ -533,11 +552,7 @@ class _SubagentProfileEditorPageState
         DropdownButtonFormField<String?>(
           value: selectedProvider,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: l10n.subagentProfileProvider,
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+          decoration: _inputDecoration(l10n.subagentProfileProvider),
           items: [
             DropdownMenuItem<String?>(
               value: null,
@@ -568,13 +583,7 @@ class _SubagentProfileEditorPageState
           DropdownButtonFormField<String>(
             value: selectedModel,
             isExpanded: true,
-            decoration: InputDecoration(
-              labelText: l10n.subagentProfileModel,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+            decoration: _inputDecoration(l10n.subagentProfileModel),
             items: [
               for (final id in models)
                 DropdownMenuItem<String>(

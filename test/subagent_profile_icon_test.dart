@@ -25,7 +25,7 @@ void main() {
     }
   });
 
-  testWidgets('read-only profiles get the lock badge', (tester) async {
+  testWidgets('read-only profiles render only the role icon', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -38,10 +38,11 @@ void main() {
     );
 
     expect(find.byIcon(Lucide.Compass), findsOneWidget);
-    expect(find.byIcon(Lucide.Lock), findsOneWidget);
+    // No second Icon means no lock badge.
+    expect(find.byType(Icon), findsOneWidget);
   });
 
-  testWidgets('writable profiles have no lock badge', (tester) async {
+  testWidgets('writable profiles render only the role icon', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -54,6 +55,6 @@ void main() {
     );
 
     expect(find.byIcon(Lucide.UserRoundCheck), findsOneWidget);
-    expect(find.byIcon(Lucide.Lock), findsNothing);
+    expect(find.byType(Icon), findsOneWidget);
   });
 }

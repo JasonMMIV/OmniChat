@@ -105,6 +105,25 @@ Future<void> _save(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('field labels and hints match the compact input text size', (
+    tester,
+  ) async {
+    final settings = _FakeSettings();
+    await _pumpPage(tester, settings);
+    await _openNew(tester);
+
+    final nameField = tester.widget<TextField>(
+      find.widgetWithText(TextField, 'Name').first,
+    );
+    expect(nameField.decoration?.labelStyle?.fontSize, 13.5);
+    expect(nameField.decoration?.hintStyle?.fontSize, 13.5);
+
+    final instructionsField = tester.widget<TextField>(
+      find.widgetWithText(TextField, 'Instructions').first,
+    );
+    expect(instructionsField.decoration?.hintStyle?.fontSize, 13.5);
+  });
+
   testWidgets('creates a custom profile with custom tool names', (
     tester,
   ) async {
