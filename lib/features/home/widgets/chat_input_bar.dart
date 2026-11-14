@@ -3085,12 +3085,12 @@ class _CompactSendButton extends StatelessWidget {
 /// Stop accent for the running composer. `colorScheme.error` is a pale pink
 /// in dark mode (#FFB4AB) and reads as disabled on a filled button, so the
 /// stop circle uses a dedicated red with a white glyph in both themes. The
-/// red is deliberately muted (#A8454C / #B04A50) so abort stays identifiable
+/// red is deliberately muted (#A8454C / #BC5B61) so abort stays identifiable
 /// without out-shouting the rest of the cluster; the light value is kept deep
-/// enough for the white square to stay legible (~5.3:1).
+/// enough for the white square to stay legible (~4.4:1).
 Color _composerStopColor(ThemeData theme) => theme.brightness == Brightness.dark
     ? const Color(0xFFA8454C)
-    : const Color(0xFFB04A50);
+    : const Color(0xFFBC5B61);
 
 /// Shared shell for the composer's Send now / Queue buttons — the circle
 /// Material, ripple, tooltip and semantics live here once; the 32 px footprint

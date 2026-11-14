@@ -173,7 +173,7 @@ void main() {
   }
 
   for (final (brightness, expected) in <(Brightness, Color)>[
-    (Brightness.light, const Color(0xFFB04A50)),
+    (Brightness.light, const Color(0xFFBC5B61)),
     (Brightness.dark, const Color(0xFFA8454C)),
   ]) {
     testWidgets(
