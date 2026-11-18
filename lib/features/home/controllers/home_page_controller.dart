@@ -1071,6 +1071,9 @@ class HomePageController extends ChangeNotifier {
     _viewModel.onStreamFinished = () {
       // Trigger UI update when streaming finishes
       notifyListeners();
+      // Keep the tail pinned through the finished-widget swap: the reply can
+      // shrink by more than a viewport when thinking and tool cards fold.
+      _scrollCtrl.stickToBottomAfterGeneration();
       _scheduleContextUsageRefresh();
       try {
         final sp = _context.read<SettingsProvider>();

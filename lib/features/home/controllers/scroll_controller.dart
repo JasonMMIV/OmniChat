@@ -22,35 +22,41 @@ import 'package:flutter/rendering.dart';
 /// artifacts: the offset is fixed in the same layout pass that produced the
 /// new content extent, so no frame is ever painted at an invalid offset.
 class ChatAutoFollowScrollController extends ScrollController {
-  /// Checked during layout to decide whether the bottom should stay pinned.
+  /// Decides whether the bottom should stay pinned, given the metrics from
+  /// *before* this layout pass.
+  ///
+  /// Taking the previous metrics is what makes "was the reader at the tail
+  /// before this resize?" answerable: by the time the position is corrected,
+  /// [ScrollMetrics.maxScrollExtent] already reports the new content extent.
   ///
   /// Runs inside the layout phase: keep it cheap and side-effect free.
-  bool Function() shouldAutoFollow = _neverFollow;
+  bool Function(ScrollMetrics? previousMetrics) shouldFollowBottom =
+      _neverFollow;
 
-  static bool _neverFollow() => false;
+  static bool _neverFollow(ScrollMetrics? previousMetrics) => false;
 
-  /// Whether a layout-phase bottom request is currently armed.
-  bool get hasActiveLayoutPositioningRequest => _positionAtBottomDuringLayout;
+  /// Detaches the follow callback so a disposed owner is never called from
+  /// layout.
+  void clearAutoFollow() {
+    shouldFollowBottom = _neverFollow;
+  }
 
   bool _positionAtBottomDuringLayout = false;
-  bool _bottomRequestYieldsToUserScroll = false;
-  int _layoutBottomRequest = 0;
+
+  /// Whether a layout-phase bottom request is currently armed.
+  @visibleForTesting
+  bool get hasActiveLayoutPositioningRequest => _positionAtBottomDuringLayout;
 
   /// Pins the bottom edge on the next layout pass.
   ///
-  /// [yieldsToUserScroll] must be true for a request held across several
-  /// frames: a real gesture has to win while the request is held, otherwise
-  /// the list fights the drag. A single-frame request owns the frame outright.
-  int requestPositionAtBottomDuringLayout({bool yieldsToUserScroll = false}) {
+  /// Always yields to a real gesture; callers are expected to keep the request
+  /// short-lived (see [ChatScrollController.stickToBottomAfterGeneration]).
+  void requestPositionAtBottomDuringLayout() {
     _positionAtBottomDuringLayout = true;
-    _bottomRequestYieldsToUserScroll = yieldsToUserScroll;
-    return ++_layoutBottomRequest;
   }
 
-  void finishPositionAtBottomDuringLayout(int request) {
-    if (request == _layoutBottomRequest) {
-      _positionAtBottomDuringLayout = false;
-    }
+  void releasePositionAtBottomDuringLayout() {
+    _positionAtBottomDuringLayout = false;
   }
 
   @override
@@ -81,15 +87,11 @@ class _AutoFollowScrollPosition extends ScrollPositionWithSingleContext {
   /// Offsets closer than this are already at the bottom.
   static const double _pinTolerance = 0.5;
 
-  bool get _shouldPinBottom {
-    if (controller._positionAtBottomDuringLayout) {
-      if (!controller._bottomRequestYieldsToUserScroll) return true;
-      return userScrollDirection == ScrollDirection.idle;
-    }
-    // An explicit hold and auto-follow both have to stand down while a real
-    // gesture is in progress, or the list would fight the drag for a frame.
+  bool _shouldPinBottom(ScrollMetrics previousMetrics) {
+    // A real gesture always wins, whether it is a drag or a ballistic settle.
     if (userScrollDirection != ScrollDirection.idle) return false;
-    return controller.shouldAutoFollow();
+    if (controller._positionAtBottomDuringLayout) return true;
+    return controller.shouldFollowBottom(previousMetrics);
   }
 
   @override
@@ -98,7 +100,7 @@ class _AutoFollowScrollPosition extends ScrollPositionWithSingleContext {
     ScrollMetrics newPosition,
   ) {
     final corrected = super.correctForNewDimensions(oldPosition, newPosition);
-    if (!_shouldPinBottom) return corrected;
+    if (!_shouldPinBottom(oldPosition)) return corrected;
     final target = newPosition.maxScrollExtent;
     // Correct in both directions: growth leaves a gap below the viewport, a
     // shrink can leave the offset past the end. The threshold keeps an already
@@ -128,6 +130,10 @@ class ChatScrollController {
         _getAutoScrollEnabled = getAutoScrollEnabled,
         _getAutoScrollIdleSeconds = getAutoScrollIdleSeconds {
     _scrollController.addListener(_onScrollControllerChanged);
+    final controller = _scrollController;
+    if (controller is ChatAutoFollowScrollController) {
+      controller.shouldFollowBottom = _shouldPinBottomDuringLayout;
+    }
   }
 
   final ScrollController _scrollController;
@@ -161,6 +167,18 @@ class ChatScrollController {
 
   /// Timer for detecting end of user scroll.
   Timer? _userScrollTimer;
+
+  /// Timer holding the layout-phase bottom pin after a reply finishes.
+  Timer? _bottomHoldTimer;
+  bool _bottomHoldActive = false;
+
+  /// How long the bottom pin is held after generation ends.
+  ///
+  /// The tail keeps changing height for a few frames after the reply ends: the
+  /// finished widget adds its action bar and token stats, thinking and tool
+  /// cards collapse, inline images settle. Catching up afterwards - instantly
+  /// or animated - is visible as the timeline jumping and then sliding.
+  static const Duration _postGenerationPinWindow = Duration(milliseconds: 450);
 
   /// Scheduling state for batched auto-scroll.
   bool _autoScrollScheduled = false;
@@ -229,6 +247,10 @@ class ChatScrollController {
       if (_scrollController.position.userScrollDirection != ScrollDirection.idle) {
         _isUserScrolling = true;
         _autoStickToBottom = false;
+        // A held pin must not outlive the gesture that interrupted it: the
+        // direction returns to idle when the drag ends, and the still-armed
+        // hold would otherwise yank the reader back to the tail.
+        _releaseBottomHold();
         // Reset chained jump anchor when user manually scrolls
         _lastJumpUserMessageId = null;
 
@@ -335,7 +357,63 @@ class ChatScrollController {
   void autoScrollToBottomIfNeeded({bool streaming = false}) {
     final enabled = _getAutoScrollEnabled();
     if (!enabled && !_autoStickToBottom) return;
+    if (streaming && _scrollController is ChatAutoFollowScrollController) {
+      // The position pins itself during layout, before paint. A driven
+      // animation here would race the height changes and can leave the offset
+      // past the end of the list when the reply finishes.
+      return;
+    }
     _scheduleAutoScrollToBottom(force: false, streaming: streaming);
+  }
+
+  /// Layout-phase answer to "should the bottom stay pinned?".
+  ///
+  /// Runs inside layout, once per frame while the list resizes: it must not
+  /// allocate, rebuild, or await anything.
+  bool _shouldPinBottomDuringLayout(ScrollMetrics? previousMetrics) {
+    if (_isUserScrolling) return false;
+    if (!_getAutoScrollEnabled()) return false;
+    if (_autoStickToBottom) return true;
+    // Mirrors the streaming gate the animation path used: a reader who was
+    // already sitting at the tail keeps following even when the sticky flag
+    // has been cleared. Uses the pre-resize metrics because the live
+    // maxScrollExtent already reports the new content extent by now.
+    if (previousMetrics == null) return false;
+    return (previousMetrics.maxScrollExtent - previousMetrics.pixels) <=
+        _autoScrollSnapTolerance;
+  }
+
+  /// Keeps the tail pinned while a finished reply settles.
+  ///
+  /// The generation flag already reads as finished when the terminal widgets
+  /// are swapped in, but their height keeps changing for a few frames. Holding
+  /// the layout pin across that window absorbs those changes before they are
+  /// ever painted; a post-frame jump would instead paint an empty viewport
+  /// first and snap back afterwards.
+  void stickToBottomAfterGeneration() {
+    if (!_getAutoScrollEnabled()) return;
+    if (!_autoStickToBottom || _isUserScrolling) return;
+    final controller = _scrollController;
+    if (controller is! ChatAutoFollowScrollController) {
+      _scheduleAutoScrollToBottom(force: true, animate: false);
+      return;
+    }
+    _bottomHoldTimer?.cancel();
+    controller.requestPositionAtBottomDuringLayout();
+    _bottomHoldActive = true;
+    _bottomHoldTimer = Timer(_postGenerationPinWindow, _releaseBottomHold);
+  }
+
+  /// Ends an active post-generation hold, if any.
+  void _releaseBottomHold() {
+    _bottomHoldTimer?.cancel();
+    _bottomHoldTimer = null;
+    if (!_bottomHoldActive) return;
+    _bottomHoldActive = false;
+    final controller = _scrollController;
+    if (controller is ChatAutoFollowScrollController) {
+      controller.releasePositionAtBottomDuringLayout();
+    }
   }
 
   /// Schedule an auto-scroll to bottom (batched via post-frame callback).
@@ -768,5 +846,10 @@ class ChatScrollController {
     _scrollController.removeListener(_onScrollControllerChanged);
     _userScrollTimer?.cancel();
     _navButtonsHideTimer?.cancel();
+    _releaseBottomHold();
+    final controller = _scrollController;
+    if (controller is ChatAutoFollowScrollController) {
+      controller.clearAutoFollow();
+    }
   }
 }

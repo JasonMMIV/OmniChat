@@ -15,6 +15,9 @@ Widget _harness({
     home: Scaffold(
       body: ListView.builder(
         controller: controller,
+        // Keep the tail item built so maxScrollExtent is measured, not
+        // extrapolated from the built children.
+        cacheExtent: 4000,
         itemCount: 2,
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -33,7 +36,7 @@ void main() {
       tester,
     ) async {
       final controller = ChatAutoFollowScrollController();
-      controller.shouldAutoFollow = () => true;
+      controller.shouldFollowBottom = (_) => true;
       addTearDown(controller.dispose);
 
       var tailHeight = 600.0;
@@ -66,7 +69,7 @@ void main() {
       tester,
     ) async {
       final controller = ChatAutoFollowScrollController();
-      controller.shouldAutoFollow = () => true;
+      controller.shouldFollowBottom = (_) => true;
       addTearDown(controller.dispose);
 
       var tailHeight = 600.0;
@@ -99,7 +102,7 @@ void main() {
       'never leaves the offset past the end when the tail shrinks mid-animation',
       (tester) async {
         final controller = ChatAutoFollowScrollController();
-        controller.shouldAutoFollow = () => true;
+        controller.shouldFollowBottom = (_) => true;
         addTearDown(controller.dispose);
 
         var tailHeight = 600.0;
@@ -148,7 +151,7 @@ void main() {
       tester,
     ) async {
       final controller = ChatAutoFollowScrollController();
-      controller.shouldAutoFollow = () => false;
+      controller.shouldFollowBottom = (_) => false;
       addTearDown(controller.dispose);
 
       var tailHeight = 600.0;
@@ -173,6 +176,153 @@ void main() {
       // A reader who scrolled up must stay where they are.
       expect(position.pixels, 0);
       expect(position.extentAfter, greaterThan(0));
+    });
+  });
+
+  group('ChatScrollController post-generation hold', () {
+    late ChatAutoFollowScrollController autoFollow;
+    late ChatScrollController scrollCtrl;
+    late StateSetter setState;
+    late double tailHeight;
+
+    Future<void> pumpHarness(WidgetTester tester) async {
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setter) {
+            setState = setter;
+            return _harness(controller: autoFollow, tailHeight: tailHeight);
+          },
+        ),
+      );
+      await tester.pump();
+    }
+
+    setUp(() {
+      tailHeight = 600;
+      autoFollow = ChatAutoFollowScrollController();
+      scrollCtrl = ChatScrollController(
+        scrollController: autoFollow,
+        onStateChanged: () {},
+        getAutoScrollEnabled: () => true,
+        getAutoScrollIdleSeconds: () => 1,
+      );
+    });
+
+    tearDown(() {
+      scrollCtrl.dispose();
+      autoFollow.dispose();
+    });
+
+    testWidgets('keeps the tail visible while the finished reply shrinks', (
+      tester,
+    ) async {
+      await pumpHarness(tester);
+      // Opening a conversation parks the list at the tail before streaming.
+      autoFollow.jumpTo(autoFollow.position.maxScrollExtent);
+      scrollCtrl.setAutoStickToBottom(true);
+      await tester.pump();
+
+      // Stream a few chunks: the pin, not an animation, keeps up with growth.
+      for (var chunk = 0; chunk < 4; chunk++) {
+        setState(() => tailHeight += 300);
+        scrollCtrl.autoScrollToBottomIfNeeded(streaming: true);
+        await tester.pump();
+      }
+      final position = autoFollow.position;
+      expect(position.pixels, position.maxScrollExtent);
+
+      // The reply finishes: thinking and tool cards fold, so the tail loses
+      // most of its height in the frame right after the pin window opens.
+      scrollCtrl.stickToBottomAfterGeneration();
+      setState(() => tailHeight = 200);
+      for (var frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(
+          position.pixels,
+          lessThanOrEqualTo(position.maxScrollExtent + 0.5),
+          reason: 'offset went past the end on frame $frame',
+        );
+      }
+
+      expect(position.pixels, position.maxScrollExtent);
+      expect(position.extentAfter, 0);
+    });
+
+    testWidgets('holds the layout pin for the settle window and then releases', (
+      tester,
+    ) async {
+      await pumpHarness(tester);
+      autoFollow.jumpTo(autoFollow.position.maxScrollExtent);
+      await tester.pump();
+
+      scrollCtrl.stickToBottomAfterGeneration();
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isTrue);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isTrue);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isFalse);
+    });
+
+    testWidgets('keeps pinning when a single frame grows past the snap band', (
+      tester,
+    ) async {
+      await pumpHarness(tester);
+
+      autoFollow.jumpTo(autoFollow.position.maxScrollExtent);
+      await tester.pump();
+      // Detached flag, but the reader is sitting on the tail.
+      scrollCtrl.setAutoStickToBottom(false);
+      expect(scrollCtrl.autoStickToBottom, isFalse);
+
+      // One chunk taller than the 56 px snap band: the decision has to be
+      // made against the pre-resize metrics, not the new max.
+      setState(() => tailHeight += 400);
+      await tester.pump();
+
+      expect(autoFollow.position.pixels, autoFollow.position.maxScrollExtent);
+    });
+
+    testWidgets('a drag during the hold window releases it for good', (
+      tester,
+    ) async {
+      await pumpHarness(tester);
+      autoFollow.jumpTo(autoFollow.position.maxScrollExtent);
+      scrollCtrl.setAutoStickToBottom(true);
+      await tester.pump();
+      expect(autoFollow.position.extentAfter, 0);
+
+      scrollCtrl.stickToBottomAfterGeneration();
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isTrue);
+
+      await tester.drag(find.byType(ListView), const Offset(0, 300));
+      await tester.pump();
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isFalse);
+
+      // Well past the settle window, the user-scroll idle timer and the nav
+      // button timer: the pin must not come back on its own.
+      await tester.pump(const Duration(milliseconds: 2500));
+      expect(autoFollow.position.pixels, lessThan(autoFollow.position.maxScrollExtent));
+      expect(autoFollow.position.extentAfter, greaterThan(0));
+    });
+
+    testWidgets('does not pull back a reader who scrolled up', (tester) async {
+      await pumpHarness(tester);
+
+      // Reader detached from the tail and scrolled back to the top.
+      scrollCtrl.setAutoStickToBottom(false);
+      autoFollow.jumpTo(0);
+      await tester.pump();
+      expect(scrollCtrl.autoStickToBottom, isFalse);
+
+      scrollCtrl.stickToBottomAfterGeneration();
+      expect(autoFollow.hasActiveLayoutPositioningRequest, isFalse);
+
+      setState(() => tailHeight = 1800);
+      await tester.pump();
+      expect(autoFollow.position.pixels, 0);
+      expect(autoFollow.position.extentAfter, greaterThan(0));
     });
   });
 }

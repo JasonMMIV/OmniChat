@@ -51,6 +51,7 @@ import '../../../shared/widgets/ios_form_text_field.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../theme/app_font_weights.dart';
 import '../controllers/home_view_model.dart';
+import '../controllers/scroll_controller.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../search/widgets/search_settings_sheet.dart';
@@ -104,7 +105,8 @@ class _HomePageState extends State<HomePage>
   final FocusNode _inputFocus = FocusNode();
   final TextEditingController _inputController = TextEditingController();
   final ChatInputBarController _mediaController = ChatInputBarController();
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController =
+      ChatAutoFollowScrollController();
   final GlobalKey _inputBarKey = GlobalKey();
   final GlobalKey _scrollMiniMapKey = GlobalKey();
   final GlobalKey _topWorkspaceKey = GlobalKey();
