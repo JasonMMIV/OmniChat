@@ -2,6 +2,113 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+// ============================================================================
+// Layout-phase auto-follow
+// ============================================================================
+
+/// A [ScrollController] whose position can keep the viewport glued to the
+/// bottom edge of the content *during layout*, before the frame is painted.
+///
+/// A post-frame `jumpTo(maxScrollExtent)` can only react after at least one
+/// frame has been painted with the stale offset. When the content shrinks
+/// while a driven scroll is in flight - exactly what happens when a streaming
+/// reply is swapped for its finished rendering - the offset can even end up
+/// past the new maximum and stay there: [ClampingScrollPhysics] deliberately
+/// skips boundary enforcement for in-flight animations, and
+/// `DrivenScrollActivity` then fails its next move, goes idle, and leaves the
+/// offset unclamped. A viewport parked entirely past the end paints nothing.
+///
+/// Correcting inside [ScrollPosition.correctForNewDimensions] removes both
+/// artifacts: the offset is fixed in the same layout pass that produced the
+/// new content extent, so no frame is ever painted at an invalid offset.
+class ChatAutoFollowScrollController extends ScrollController {
+  /// Checked during layout to decide whether the bottom should stay pinned.
+  ///
+  /// Runs inside the layout phase: keep it cheap and side-effect free.
+  bool Function() shouldAutoFollow = _neverFollow;
+
+  static bool _neverFollow() => false;
+
+  /// Whether a layout-phase bottom request is currently armed.
+  bool get hasActiveLayoutPositioningRequest => _positionAtBottomDuringLayout;
+
+  bool _positionAtBottomDuringLayout = false;
+  bool _bottomRequestYieldsToUserScroll = false;
+  int _layoutBottomRequest = 0;
+
+  /// Pins the bottom edge on the next layout pass.
+  ///
+  /// [yieldsToUserScroll] must be true for a request held across several
+  /// frames: a real gesture has to win while the request is held, otherwise
+  /// the list fights the drag. A single-frame request owns the frame outright.
+  int requestPositionAtBottomDuringLayout({bool yieldsToUserScroll = false}) {
+    _positionAtBottomDuringLayout = true;
+    _bottomRequestYieldsToUserScroll = yieldsToUserScroll;
+    return ++_layoutBottomRequest;
+  }
+
+  void finishPositionAtBottomDuringLayout(int request) {
+    if (request == _layoutBottomRequest) {
+      _positionAtBottomDuringLayout = false;
+    }
+  }
+
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) {
+    return _AutoFollowScrollPosition(
+      physics: physics,
+      context: context,
+      oldPosition: oldPosition,
+      controller: this,
+    );
+  }
+}
+
+class _AutoFollowScrollPosition extends ScrollPositionWithSingleContext {
+  _AutoFollowScrollPosition({
+    required super.physics,
+    required super.context,
+    super.oldPosition,
+    required this.controller,
+  });
+
+  final ChatAutoFollowScrollController controller;
+
+  /// Offsets closer than this are already at the bottom.
+  static const double _pinTolerance = 0.5;
+
+  bool get _shouldPinBottom {
+    if (controller._positionAtBottomDuringLayout) {
+      if (!controller._bottomRequestYieldsToUserScroll) return true;
+      return userScrollDirection == ScrollDirection.idle;
+    }
+    // An explicit hold and auto-follow both have to stand down while a real
+    // gesture is in progress, or the list would fight the drag for a frame.
+    if (userScrollDirection != ScrollDirection.idle) return false;
+    return controller.shouldAutoFollow();
+  }
+
+  @override
+  bool correctForNewDimensions(
+    ScrollMetrics oldPosition,
+    ScrollMetrics newPosition,
+  ) {
+    final corrected = super.correctForNewDimensions(oldPosition, newPosition);
+    if (!_shouldPinBottom) return corrected;
+    final target = newPosition.maxScrollExtent;
+    // Correct in both directions: growth leaves a gap below the viewport, a
+    // shrink can leave the offset past the end. The threshold keeps an already
+    // aligned position from requesting a re-layout on every frame.
+    if ((target - pixels).abs() <= _pinTolerance) return corrected;
+    correctPixels(target);
+    return false;
+  }
+}
+
 /// Controller for managing scroll behavior in the chat home page.
 ///
 /// This controller handles:
